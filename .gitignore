@@ -59,3 +59,11 @@ typings/
 
 # next.js build output
 .next
+
+.DS_Store
+
+config/*.js
+!config/example.js
+!config/index.js
+
+test/*.js

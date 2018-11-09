@@ -1,0 +1,24 @@
+extends simple-layout
+block content
+  a.btn.qboconnect(href="#")
+    img.img-fluid(src="/images/C2QB_green_btn_med_default.png")
+      
+block endbody
+  script(
+    src="https://code.jquery.com/jquery-3.3.1.min.js" 
+    integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+    crossorigin="anonymous")
+  script.
+    $(document).ready(function(){
+      $('body').on("mouseover", ".qboconnect", ()=>{ $('.qboconnect img').attr("src","/images/C2QB_green_btn_med_hover.png")});
+      $('body').on("mouseout", ".qboconnect", ()=>{ $('.qboconnect img').attr("src","/images/C2QB_green_btn_med_default.png")});
+      
+      var qbowin;
+      var checkConnect;
+      var oAuthURL = "!{quickbooksAuthUrl}";
+      $("a.qboconnect").on("click", function(){
+        //var left = ( $(window).width() - 800/2 );
+        qbowin = window.open(oAuthURL, "Connect to QuickBooks", `width=800,height=600,modal=yes,resizable=yes,chrome=yes,alwaysRaised=yes`);
+      });
+    });
+    

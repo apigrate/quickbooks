@@ -1,0 +1,32 @@
+{
+  "name": "@apigrate/quickbooks",
+  "version": "1.0.0",
+  "description": "Connector for the QuickBooks API.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apigrate/quickbooks.git"
+  },
+  "author": "Derek Gau",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/apigrate/quickbooks/issues"
+  },
+  "homepage": "https://github.com/apigrate/quickbooks#readme",
+  "dependencies": {
+    "debug": "^4.1.0",
+    "lodash": "^4.17.11",
+    "moment": "^2.22.2",
+    "request": "^2.88.0",
+    "request-promise-native": "^1.0.5",
+    "uuid": "^3.3.2"
+  },
+  "devDependencies": {
+    "@apigrate/mysqlutils": "^2.2.2",
+    "express": "^4.16.4",
+    "pug": "^2.0.3"
+  }
+}

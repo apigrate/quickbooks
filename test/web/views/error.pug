@@ -1,0 +1,14 @@
+extends simple-layout
+
+block content
+  div.row
+    div.col-3
+    div.card.bg-light.col-6
+      div.card-body.text-center
+        h5.card-title.text-warning Whoops. We can't do that right now.
+        h6.card-text.text-danger= message
+        div
+          a.btn.btn-warning(href="/") Return Home...
+        if process.env.NODE_ENV === 'development'
+          div.text-left
+            pre.card-text #{error.stack}
