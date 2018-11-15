@@ -68,8 +68,8 @@ var qbo = qboConnect(
   client_secret,
   access_token,
   refresh_token,
-  user, // realm id
-  null, // opts (future use)
+  realm_id,
+  {minorversion: 3, production: true}, // opts (see below)
   function(info){
     console.log('Token was refreshed.');
     /*
@@ -85,6 +85,12 @@ var qbo = qboConnect(
   }
 );
 ```
+
+Important: the `opts` argument currently supports the following properties:
+1. **minorversion** *number* (optional) specifying the QuickBooks API minor version parameter to be passed through on each API call
+1. **production** *boolean* (required for production) indicating that the app is making connections to a production (i.e. non-Sandbox) production instance). Set to true when you are making production API calls; otherwise the connector will make API calls to the API sandbox endpoint.
+1. **return_full_response** *boolean* (optional) indicating the full response from Intuit will be returned instead of the body of the response. This can be useful for debugging. Defaults to **false**.
+1. **timeout** *number* (optional) number of milliseconds to wait for a response before timing out. Defaults to **10000**.
 You can immediately begin using the connector to make API calls.
 
 #### Longhand Instantiation
@@ -95,8 +101,8 @@ var qbo = new QboConnector(
   client_secret,
   access_token,
   refresh_token,
-  user, // realm id
-  null //opts (future use)
+  realm_id,
+  {minorversion: 3, production: true}
 );
 
 qbo.on("token.refreshed", function(info){
