@@ -1,6 +1,6 @@
 {
   "name": "@apigrate/quickbooks",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Connector for the QuickBooks API.",
   "main": "index.js",
   "scripts": {
@@ -25,7 +25,6 @@
     "uuid": "^3.3.2"
   },
   "devDependencies": {
-    "@apigrate/mysqlutils": "^2.2.2",
     "express": "^4.16.4",
     "pug": "^2.0.3"
   }
