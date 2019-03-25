@@ -6,7 +6,7 @@ var router  = express.Router();
 var debug   = require('debug')('qbo-route');
 var config  = require('../../../config');
 var moment  = require('moment');
-var { getQuickBooksAuthorizationUrl, getQuickBooksAccessToken } = require('../../../')();
+var { getQuickBooksAuthorizationUrl, getQuickBooksAccessToken, QboConnector } = require('../../../');
 
 var STATE = 'abc123'; //normally you'd generate this and store in session across requests.
 var QUICKBOOKS_APP_CLIENT_ID = config.client_id;

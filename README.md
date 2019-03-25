@@ -57,33 +57,39 @@ Almost the entire QuickBooks Online Accounting API...
 
 ## Usage
 ```javascript
-var {QboConnector, qboConnect, getQuickBooksAuthorizationUrl, getQuickBooksAccessToken} = require('@apigrate/quickbooks');
+var {QboConnector, getQuickBooksAuthorizationUrl, getQuickBooksAccessToken} = require('@apigrate/quickbooks');
 ```
 ### Instantiation
-A shorthand factory method is available to return a fully-configured, initialized instance of the QuickBooks connector.
 
 ```javascript
-var qbo = qboConnect(
-  client_id,
-  client_secret,
-  access_token,
-  refresh_token,
-  realm_id,
-  {minorversion: 3, production: true}, // opts (see below)
-  function(info){
-    console.log('Token was refreshed.');
-    /*
-      The connector emits a token.refreshed event that can be used after it obtains
-      a new access/refresh token. You should persist this information to maintain your QuickBooks Online API connectivity.
-
-      The info object has the following properties:
-      info.access_token;
-      info.expires; //in seconds
-      info.refresh_token;
-      info.x_refresh_token_expires_in;
-    */
-  }
+var qbo = new QboConnector(
+  client_id,        //you must implement storage of the OAuth data
+  client_secret,    //you must implement storage of the OAuth data
+  access_token,     //you must implement storage of the OAuth data
+  refresh_token,    //you must implement storage of the OAuth data
+  realm_id,         //you must implement storage of the OAuth data
+  {minorversion: 3, production: true} // opts (see below)
 );
+
+//Make sure to handle a token refresh - this would update your OAuth data.
+qbo.on('token.refreshed', function(info){
+  console.log('Token was refreshed.');
+  /*
+    The connector emits a token.refreshed event that can be used after it obtains
+    a new access/refresh token. You should persist this information to maintain your QuickBooks Online API connectivity.
+
+    The info object has the following properties:
+    info.access_token;
+    info.expires; //in seconds
+    info.refresh_token;
+    info.x_refresh_token_expires_in;
+  */
+});
+
+//Init the connector (syncronous function)
+qbo.init();
+
+//Now you can make API calls!
 ```
 
 Important: the `opts` argument currently supports the following properties:
@@ -93,36 +99,7 @@ Important: the `opts` argument currently supports the following properties:
 1. **timeout** *number* (optional) number of milliseconds to wait for a response before timing out. Defaults to **10000**.
 You can immediately begin using the connector to make API calls.
 
-#### Longhand Instantiation
-If you need to separate the initialization process for some reason, you can use the `QboConnector` class directly as follows.
-```javascript
-var qbo = new QboConnector(
-  client_id,
-  client_secret,
-  access_token,
-  refresh_token,
-  realm_id,
-  {minorversion: 3, production: true}
-);
-
-qbo.on("token.refreshed", function(info){
-  console.log('Token was refreshed.');
-
-  /*
-    The class emits a token.refreshed event that can be used after it obtains
-    a new access/refresh token. You should this updated information to maintain your QuickBooks Online API connectivity.
-
-    The info object has the following properties:
-    info.access_token;
-    info.expires; //in seconds
-    info.refresh_token;
-    info.x_refresh_token_expires_in;
-
-  */
-});
-```
-
-When using the longhand instantiation approach, before calling any API methods, ***you must invoke the `init()` method***. It registers all of the various API calls as easy-to-understand functions on the `qbo.accounting` object, which wraps the QuickBooks Accounting API.
+Note. before calling any API methods, ***you must invoke the `init()` method***. It registers all of the various API calls as easy-to-understand functions on the `qbo.accounting` object, which wraps the QuickBooks Accounting API.
 ```javascript
 qbo.init();//synchronous
 ```
@@ -295,6 +272,46 @@ qbo.accounting.invoices.delete({
   */
 });
 ```
+
+#### Batch Requests
+Batch requests (submitting multiple operations with one request) ARE supported! Here is a code example. This deletes multiple time activities, but you can mix your own types of transactions. They do not need to be the same type of entity or operation.
+
+```javascript
+try{
+  let activities = [
+    {Id: 123489, SyncToken: 0},
+    {Id: 178275, SyncToken: 0},
+    {Id: 189085, SyncToken: 0},
+    ///...
+    {Id: 190239, SyncToken: 0},
+  ];//Only Id and SyncToken are needed on each for delete
+
+
+  let batch = {
+    BatchItemRequest: []
+  }
+
+  for(let i=0; i<activities.length; i++){
+    let activityToDelete = activities[i];
+
+    batch.BatchItemRequest.push({
+      bId: i,
+      operation: "delete",
+      TimeActivity: {
+        Id: activityToDelete.Id,
+        SyncToken: activityToDelete.SyncToken
+      }
+    });
+  }
+
+  //Invoke Batch API
+  await qbo.accounting.batch(batch);
+
+} catch (err) {
+  //...
+}
+```
+Note that since you can mix the type of entity on batch requests, this method is not namespaced on entities (it is available directly on the `qbo.accounting` object).
 
 #### Error Handling
 
