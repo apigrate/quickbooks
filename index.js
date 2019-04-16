@@ -219,7 +219,7 @@ class QboConnector extends EventEmitter{
 
       } else {
         self.handleError(err);
-        reject( err );
+        throw err;
       }
 
     }
@@ -256,7 +256,7 @@ class QboConnector extends EventEmitter{
 
       } else {
         self.handleError(err);
-        throw(err);
+        throw err;
       }
 
     }
