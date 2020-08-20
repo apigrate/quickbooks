@@ -1,0 +1,77 @@
+#
+# Intuit Oauth2 Microservices
+#
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: >
+  Intuit Oauth2 Microservices.
+  These microservices support the OAuth2 initiation and callback processes, and result
+  in the Intuit QuickBooks API credentials being stored in AWS S3 bucket for secure storage.
+Parameters:
+  lambdaExecutionRole:
+    Description: 'Required. The role used for lambda execution.'
+    Type: 'String'
+    Default: 'arn:aws:iam::330926059339:role/LambdaExecutionRole'
+
+Globals:
+  Function:
+    Runtime: nodejs12.x
+    Timeout: 180
+    Environment:
+      Variables:
+        AWS_BUCKET: '{{resolve:ssm:BUCKET_APPINFO:1}}'
+        DEBUG: gr8:quickbooks,gr8:quickbooks:aws
+        NODE_ENV: production
+        INTUIT_CLIENT_ID: '{{resolve:ssm:TEST_INTUIT_CLIENT_ID:1}}'
+        INTUIT_CLIENT_SECRET: '{{resolve:ssm:TEST_INTUIT_CLIENT_SECRET:1}}'
+        INTUIT_REDIRECT_URI:
+          Fn::Sub: 'https://hlpxj0s089.execute-api.${AWS::Region}.${AWS::URLSuffix}/prod/intuit/connected'
+
+Resources:
+  #Endpoints for the TD Ameritrade OAuth2 process.
+  intuitApi:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      StageName: prod
+  
+  intuitConnect:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: intuitConnect
+      Handler: test/aws/intuit-auth-api.intuitConnect
+      CodeUri: ../
+      Description: Begins the Intuit API OAUth process.
+      MemorySize: 256
+      Timeout: 60
+      Role:
+        Ref: lambdaExecutionRole
+      Events:
+        IntuitConnectEvent:
+          Type: Api
+          Properties:
+            Path: '/intuit/connect'
+            Method: GET
+            RestApiId:
+              Ref: intuitApi
+
+  intuitCallback:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: intuitCallback
+      Handler: test/aws/intuit-auth-api.intuitCallback
+      CodeUri: ../
+      Description: Receives callbacks from the Intuit OAuth process, eventually receiving an access token for use with the API
+      MemorySize: 256
+      Timeout: 60
+      Role:
+        Ref: lambdaExecutionRole
+      Events:
+        IntuitCallbackEvent:
+          Type: Api
+          Properties:
+            Path: '/intuit/connected'
+            Method: GET
+            RestApiId:
+              Ref: intuitApi
+
+  
