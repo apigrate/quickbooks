@@ -5,13 +5,9 @@
  */
 const debug = require('debug')('gr8:quickbooks:aws');
 
-const {getIntuitAuthorizationUrl, QboConnector} = require('../../index');
-
+const {QboConnector} = require('../../index');
 const {AwsStorage} = require('./storage');
-let stateStorage = new AwsStorage(process.env.AWS_BUCKET, `credentials/intuit/${process.env.NODE_ENV}-state.json`);
 let credentialsStorage = new AwsStorage(process.env.AWS_BUCKET, `credentials/intuit/${process.env.NODE_ENV}-credentials.json`);
-
-const { v4: uuidv4 } = require('uuid');
 
 const qbo = new QboConnector({
   client_id: process.env.INTUIT_CLIENT_ID,
