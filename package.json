@@ -1,10 +1,12 @@
 {
   "name": "@apigrate/quickbooks",
-  "version": "2.0.1",
-  "description": "Connector for the QuickBooks API.",
+  "version": "3.0.0",
+  "description": "NodeJS API Connector for the Intuit QuickBooks API.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-package-aws": "sam package cloudformation deploy --profile myprofile  --template-file ./templates/intuit-auth-api.yaml --output-template-file pkg-intuitauth.yaml --s3-bucket mybucketname",
+    "test-deploy-aws": "aws cloudformation deploy --profile myprofile  --template-file pkg-intuitauth.yaml --stack-name intuitauth"
   },
   "repository": {
     "type": "git",
@@ -17,15 +19,15 @@
   },
   "homepage": "https://github.com/apigrate/quickbooks#readme",
   "dependencies": {
-    "debug": "^4.1.0",
-    "lodash": "^4.17.11",
-    "moment": "^2.22.2",
-    "request": "^2.88.0",
-    "request-promise-native": "^1.0.5",
-    "uuid": "^3.3.2"
+    "debug": "^4.1.1",
+    "moment": "^2.24.0",
+    "node-fetch": "^2.6.0",
+    "query-string": "^6.13.1",
+    "uuid": "^8.3.0"
   },
   "devDependencies": {
-    "express": "^4.16.4",
-    "pug": "^2.0.3"
+    "express": "^4.17.1",
+    "pug": "^2.0.4",
+    "aws-sdk": "^2.737.0"
   }
 }
