@@ -1,120 +1,136 @@
-var request = require('request-promise-native');
+const fetch = require('node-fetch');
+const qs = require('query-string');
 
-var debug   = require('debug')('gr8:qbo');
-var verbose = require('debug')('gr8:qbo:verbose');
+var debug   = require('debug')('gr8:quickbooks');
+var verbose = require('debug')('gr8:quickbooks:verbose');
 
 const EventEmitter = require('events');
 
 const AUTHORIZATION_ENDPOINT = 'https://appcenter.intuit.com/connect/oauth2';
 const TOKEN_ENDPOINT = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
-/**
-  QBO API Library
-  opts {
-    timeout: 10000, //in ms
-    return_full_response: true, //whether to return just data + intuit_tid (when false) or the full JSON body (when true)
-    minorversion
-  }
-*/
-class QboConnector extends EventEmitter{
-  constructor(client_id, client_secret, access_token, refresh_token, realm_id, opts){
-    super();
-    this.client_id=client_id;
-    this.client_secret=client_secret;
-    this.access_token=access_token;
-    this.refresh_token=refresh_token;
-    this.realm_id=realm_id;
-    if(!opts){
-      opts = {
-        return_full_response: false,//future use
-        timeout: 10000,
-        minorversion: null
-      }
-    }
-    this.opts = opts;
+const REVOCATION_ENDPOINT = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke';
+const USER_AGENT = 'Apigrate QuickBooks NodeJS Connector/3.x';
 
+/**
+ * NodeJS QuickBooks connector class. 
+ * 
+ * @version 3.x
+ * @example
+ *  
+ */
+class QboConnector extends EventEmitter{
+  /**
+   * 
+   * @constructor 
+   * @param {object} config 
+   * @param {string} config.client_id 
+   * @param {string} config.client_secret 
+   * @param {string} config.access_token 
+   * @param {string} config.refresh_token 
+   * @param {string} config.realm_id 
+   * @param {string} config.base_url defaults to 'https://quickbooks.api.intuit.com/v3' if not provided. If you are testing with a sandbox 
+   * environment, consult the documentation for the base url to use (e.g. 'https://sandbox-quickbooks.api.intuit.com/v3')
+   * @param {number} config.minor_version optional minor version to use on API calls to the QuickBooks API
+   * @param {function} config.credential_initializer optional function returning an object with the initial credentials to be used, of the form
+   * `{ access_token, refresh_token, realm_id}`. This function is invoked on the first API method invocation automatically. If you omit this function, you'll need
+   * to call the setCredentials method prior to your first API method invocation. 
+   */
+  constructor(config){
+    super();
+    this.client_id=config.client_id;
+    this.client_secret=config.client_secret;
+    this.access_token=config.access_token || null;
+    this.refresh_token=config.refresh_token || null;
+    this.realm_id=config.realm_id || null;
+    this.minor_version = config.minor_version || null;
+    this.credential_initializer = config.credential_initializer || null;
+    this.base_url = config.base_url || 'https://quickbooks.api.intuit.com/v3';
 
     this.registry = [
       //Transactional
-      { name: 'Bill',             singular: 'bill',           plural: 'bills',            query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'BillPayment',      singular: 'billpayment',    plural: 'billpayments',     query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'CreditMemo',       singular: 'creditmemo',     plural: 'creditmemos',      query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'Deposit',          singular: 'deposit',        plural: 'deposits',         query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'Estimate',         singular: 'estimate',       plural: 'estimates',        query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'Invoice',          singular: 'invoice',        plural: 'invoices',         query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'JournalEntry',     singular: 'journalentry',   plural: 'journalentries',   query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'Payment',          singular: 'payment',        plural: 'payments',         query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'Purchase',         singular: 'purchase',       plural: 'purchases',        query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'Purchaseorder',    singular: 'purchaseorder',  plural: 'purchaseorders',   query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'RefundReceipt',    singular: 'refundreceipt',  plural: 'refundreceipts',   query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'SalesReceipt',     singular: 'salesreceipt',   plural: 'salesreceipts',    query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'TimeActivity',     singular: 'timeactivity',   plural: 'timeactivities',   query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'Transfer',         singular: 'transfer',       plural: 'transfers',        query:true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'VendorCredit',     singular: 'vendorcredit',   plural: 'vendorcredits',    query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Bill',             name: 'Bill',             fragment: 'bill',           query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'BillPayment',      name: 'BillPayment',      fragment: 'billpayment',    query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'CreditMemo',       name: 'CreditMemo',       fragment: 'creditmemo',     query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Deposit',          name: 'Deposit',          fragment: 'deposit',        query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Estimate',         name: 'Estimate',         fragment: 'estimate',       query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Invoice',          name: 'Invoice',          fragment: 'invoice',        query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'JournalEntry',     name: 'JournalEntry',     fragment: 'journalentry',   query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Payment',          name: 'Payment',          fragment: 'payment',        query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Purchase',         name: 'Purchase',         fragment: 'purchase',       query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Purchaseorder',    name: 'Purchaseorder',    fragment: 'purchaseorder',  query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'RefundReceipt',    name: 'RefundReceipt',    fragment: 'refundreceipt',  query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'SalesReceipt',     name: 'SalesReceipt',     fragment: 'salesreceipt',   query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'TimeActivity',     name: 'TimeActivity',     fragment: 'timeactivity',   query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Transfer',         name: 'Transfer',         fragment: 'transfer',       query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'VendorCredit',     name: 'VendorCredit',     fragment: 'vendorcredit',   query:true,  create:true,  read: true,  update: true,  delete: true },
       //Named List
-      { name: 'Account',          singular: 'account',          plural: 'accounts',          query: true,  create:true,  read: true,  update: true,  delete: false },
-      { name: 'Budget',           singular: 'budget',           plural: 'budgets',           query: true,  create:false, read: true,  update: false, delete: false },
-      { name: 'Class',            singular: 'class',            plural: 'classes',            query: true,  create:true,  read: true,  update: true,  delete: false },
-      { name: 'CompanyCurrency',  singular: 'companycurrency',  plural: 'companycurrencies',  query: true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'Customer',         singular: 'customer',         plural: 'customers',        query: true,  create:true,  read: true,  update: true,  delete: false },
-      { name: 'Department',       singular: 'department',       plural: 'departments',      query: true,  create:true,  read: true,  update: true,  delete: false },
-      { name: 'Employee',         singular: 'employee',         plural: 'employees',        query: true,  create:true,  read: true,  update: true,  delete: false },
-      { name: 'Item',             singular: 'item',             plural: 'items',            query: true,  create:true,  read: true,  update: true,  delete: false },
-      { name: 'Journalcode',      singular: 'journalcode',      plural: 'journalcodes',     query: true,  create:true,  read: true,  update: true,  delete: false },//FR only.
-      { name: 'PaymentMethod',    singular: 'paymentmethod',    plural: 'paymentmethods',   query: true,  create:true,  read: true,  update: true,  delete: false },
-      { name: 'TaxAgency',        singular: 'taxagency',        plural: 'taxagencies',      query: true,  create:true,  read: true,  update: false, delete: false },
-      { name: 'TaxCode',          singular: 'taxcode',          plural: 'taxcodes',         query: true,  create:true,  read: true,  update: false, delete: false },
-      { name: 'TaxRate',          singular: 'taxrate',          plural: 'taxrates',         query: true,  create:true,  read: true,  update: false, delete: false },
-      { name: 'TaxService',       singular: 'taxservice',       plural: 'taxservices',      query: true,  create:true,  read: false, update: false, delete: false },
-      { name: 'Term',             singular: 'term',             plural: 'terms',            query: true,  create:true,  read: true,  update: true,  delete: false },
-      { name: 'Vendor',           singular: 'vendor',           plural: 'vendors',          query: true,  create:true,  read: true,  update: true,  delete: false },
-      //supporting
-      { name: 'Attachable',       singular: 'attachable',       plural: 'attachables',      query: true,  create:true,  read: true,  update: true,  delete: true },
-      { name: 'CompanyInfo',      singular: 'companyinfo',      plural: 'companyinfo',      query: true,  create:false, read: true,  update: true,  delete: false },
-      { name: 'Preferences',      singular: 'preferences',      plural: 'preferences',      query: true,  create:false, read: true,  update: true,  delete: false }
+      { handle: 'Account',            name: 'Account',          fragment: 'account',           query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'Budget',             name: 'Budget',           fragment: 'budget',            query: true,  create:false, read: true,  update: false, delete: false },
+      { handle: 'Class',              name: 'Class',            fragment: 'class',             query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'CompanyCurrency',    name: 'CompanyCurrency',  fragment: 'companycurrency',   query: true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Customer',           name: 'Customer',         fragment: 'customer',          query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'Department',         name: 'Department',       fragment: 'department',        query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'Employee',           name: 'Employee',         fragment: 'employee',          query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'Item',               name: 'Item',             fragment: 'item',              query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'Journalcode',        name: 'Journalcode',      fragment: 'journalcode',       query: true,  create:true,  read: true,  update: true,  delete: false },//FR only.
+      { handle: 'PaymentMethod',      name: 'PaymentMethod',    fragment: 'paymentmethod',     query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'TaxAgency',          name: 'TaxAgency',        fragment: 'taxagency',         query: true,  create:true,  read: true,  update: false, delete: false },
+      { handle: 'TaxCode',            name: 'TaxCode',          fragment: 'taxcode',           query: true,  create:true,  read: true,  update: false, delete: false },
+      { handle: 'TaxRate',            name: 'TaxRate',          fragment: 'taxrate',           query: true,  create:true,  read: true,  update: false, delete: false },
+      { handle: 'TaxService',         name: 'TaxService',       fragment: 'taxservice',        query: true,  create:true,  read: false, update: false, delete: false },
+      { handle: 'Term',               name: 'Term',             fragment: 'term',              query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'Vendor',             name: 'Vendor',           fragment: 'vendor',            query: true,  create:true,  read: true,  update: true,  delete: false },
+      { handle: 'Attachable',         name: 'Attachable',       fragment: 'attachable',        query: true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'CompanyInfo',        name: 'CompanyInfo',      fragment: 'companyinfo',       query: true,  create:false, read: true,  update: true,  delete: false },
+      { handle: 'Preferences',        name: 'Preferences',      fragment: 'preferences',       query: true,  create:false, read: true,  update: true,  delete: false },
+      //reports
+      { handle: 'TransactionListReport',  name: 'TransactionListReport',  fragment: 'TransactionList',  report: true },
     ];
 
     this.accounting={};
 
-    //TODO: make these URLS configurable via opts.
-    this.baseUrl = `https://quickbooks.api.intuit.com/v3/company/${realm_id}`;
-    if(!opts || !opts.production){
-      this.baseUrl = `https://sandbox-quickbooks.api.intuit.com/v3/company/${realm_id}`;
-    }
-    this.authorizationEndpoint = AUTHORIZATION_ENDPOINT;
-    this.tokenEndpoint = TOKEN_ENDPOINT;
-    this.revocationEndpoint = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke';
-
-    this.baseRequest = request.defaults({
-      baseUrl : this.baseUrl,
-      headers:{
-        'User-Agent': '@apigrate-qbo/1.0 Apigrate QuickBooks Online Connector for NodeJS',
-        'Content-Type': 'application/json',
-      },
-      json: true,
-      resolveWithFullResponse: opts ? opts.return_full_response : false,
-      timeout: opts && opts.timeout ? opts.timeout : 10000 //timeout of 10s by default
-    });
-
   }//end constructor
 
+  /**
+   * Sets the credentials on the connector. If any of the creds properties are missing,
+   * the corresponding internal property will NOT be set.
+   * @param {object} creds
+   * @param {string} creds.access_token the Intuit access token 
+   * @param {string} creds.realm_id the Intuit realm_id
+   * @param {string} creds.refresh_token the Intuit refresh token 
+   */
+  setCredentials(creds){
+    if(!creds) throw new Error("No credentials provided.");
+    if(creds.access_token){
+      this.access_token = creds.access_token;
+    }
+    if(creds.refresh_token){
+      this.refresh_token = creds.refresh_token;
+    }
+    if(creds.realm_id){
+      this.realm_id = creds.realm_id;
+    }
+    // verbose(`${this.access_token}\n${this.refresh_token}\n${this.realm_id}`)
+  }
 
   /**
-   * Assigns supported REST functions to the "accounting" entity
+   * Get the object through which you can interact with the QuickBooks Online Accounting API.
    */
-  init(){
+  acccountingApi(){
+
     var self = this;
     self.registry.forEach( function(e){
-      var options = {name: e.name, singular: e.singular, plural: e.plural};
+      var options = {name: e.name, fragment: e.fragment };
       if(e.create){
         options.create = function(payload, reqid){
           var qs = {};
           if(reqid){
             qs.requestid=reqid ;
           }
-          if(self.opts.minorversion){
-            qs.minorversion = self.opts.minorversion;
+          if(self.minor_version){
+            qs.minorversion = self.minor_version;
           }
-          return self._post(e.name, `/${e.singular}`, qs, payload);
+          return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
         }
       }
 
@@ -124,10 +140,10 @@ class QboConnector extends EventEmitter{
           if(reqid){
             qs.requestid=reqid ;
           }
-          if(self.opts.minorversion){
-            qs.minorversion = self.opts.minorversion;
+          if(self.minor_version){
+            qs.minorversion = self.minor_version;
           }
-          return self._post(e.name, `/${e.singular}`, qs, payload);
+          return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
         }
       }
 
@@ -137,11 +153,11 @@ class QboConnector extends EventEmitter{
           if(reqid){
             qs = { requestid: reqid };
           }
-          if(self.opts.minorversion){
+          if(self.minor_version){
             if(!qs) qs = {};
-            qs.minorversion = self.opts.minorversion;
+            qs.minorversion = self.minor_version;
           }
-          return self._get(e.name, `/${e.singular}/${id}`, qs);
+          return self._get.call(self, e.name, `/${e.fragment}/${id}`, qs);
         }
       }
 
@@ -151,10 +167,10 @@ class QboConnector extends EventEmitter{
           if(reqid){
             qs.requestid=reqid ;
           }
-          if(self.opts.minorversion){
-            qs.minorversion = self.opts.minorversion;
+          if(self.minor_version){
+            qs.minorversion = self.minor_version;
           }
-          return self._post(e.name, `/${e.singular}`, qs, payload);
+          return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
         }
       }
 
@@ -169,20 +185,38 @@ class QboConnector extends EventEmitter{
           if(reqid){
             qs.requestid = reqid;
           }
-          if(self.opts.minorversion){
+          if(self.minor_version){
             if(!qs) qs = {};
-            qs.minorversion = self.opts.minorversion;
+            qs.minorversion = self.minor_version;
           }
-          return self._get(e.name, `/query`, qs);
+          
+          return self._get.call(self, e.name, `/query`, qs);
         }
       }
-      self.accounting[e.plural]=options;
+
+      if(e.report){
+        options.query = function(parms, reqid){
+          
+          var qs = parms || {};
+          if(reqid){
+            qs.requestid = reqid;
+          }
+          if(self.minor_version){
+            if(!qs) qs = {};
+            qs.minorversion = self.minor_version;
+          }
+          
+          return self._get.call(self, e.name, `/reports/${e.fragment}`, qs);
+        }
+      }
+
+      self.accounting[e.handle]=options;
+
     });
-    self.accounting.batch=function(payload){ return self._batch(payload); }//and the batch method as well...
-    return self;
+    self.accounting.batch=function(payload){ return self._batch.call(self, payload); }//and the batch method as well...
+
+    return self.accounting;
   }
-
-
 
 
   /**
@@ -190,125 +224,40 @@ class QboConnector extends EventEmitter{
     @param {string} entityName the name of the entity in the registry.
     @param {string} uri (after base url).
     @param {object} qs query string hash
-    @param {string} skip_refresh_token whether to skip a refresh token attempt (default false, meaning it will
-      initially attempt to get a refresh token if a 401 is received)
   */
-  async _get(entityName, uri, qs, skip_refresh_token){
-    var self = this;
-    try{
-      debug(`GET ${entityName} ${uri}`);
-
-      var theRequest = self.baseRequest.defaults({
-        method: 'GET',
-        uri: uri,
-        qs: qs,
-        headers: {'Authorization': `Bearer ${self.access_token}` } //the latest token
-      });
-      let theResponse = await theRequest();
-      verbose(`    ${JSON.stringify(theResponse)}`);
-      return theResponse;
-
-    }catch(err){
-      if(err.statusCode && err.statusCode===401 && !skip_refresh_token){
-        //If 401 and refresh is allowed, try refreshing the token and retrying this API call.
-        debug(`    unauthorized (status code is ${err.statusCode})`)
-        await self.refreshAccessToken();
-        let theResponse = await self._get(entityName, uri, qs, true);
-        verbose(`    ${JSON.stringify(theResponse)}`);
-        return theResponse;
-
-      } else {
-        self.handleError(err);
-        throw err;
-      }
-
-    }
-
+  async _get(entityName, uri, qs){
+    return await this.doFetch(
+      "GET", 
+      `${uri}`, 
+      qs, 
+      null, 
+      {entityName}
+    );
   }
 
 
-  async _post(entityName, uri, qs, body, skip_refresh_token){
-    var self = this;
-    try{
-
-      debug(`POST ${uri}`);
-      var theRequest = self.baseRequest.defaults({
-        method: 'POST',
-        uri: uri,
-        qs: qs,
-        body: body,
-        headers: {'Authorization': `Bearer ${self.access_token}` } //the latest token
-      });
-      let theResponse = await theRequest();
-      verbose(`     ${JSON.stringify(theResponse)}`);
-      return theResponse;
-
-    }catch(err){
-      console.error(`error: ${JSON.stringify(err)}`);
-
-      if(err.statusCode && err.statusCode===401 && !skip_refresh_token){
-        //If 401 and refresh is allowed, try refreshing the token and retrying this API call.
-        debug(`     unauthorized (status code is ${err.statusCode})`)
-        await self.refreshAccessToken();
-        let theResponse = await self._post(entityName, uri, null, body, true);
-        verbose(`     ${JSON.stringify(theResponse)}`);
-        return theResponse;
-
-      } else {
-        self.handleError(err);
-        throw err;
-      }
-
-    }
+  async _post(entityName, uri, qs, body){
+    return await this.doFetch(
+      "POST", 
+      `${uri}`, 
+      qs, 
+      body, 
+      {entityName}
+    );
   }
 
 
-  async _batch(body, skip_refresh_token){
-    var self = this;
-
-    try {
-
-      debug(`POST /batch`);
-      verbose(`${JSON.stringify(body)}`);
-      var theRequest = self.baseRequest.defaults({
-        method: 'POST',
-        uri: `/batch`,
-        body: body,
-        headers: {'Authorization': `Bearer ${self.access_token}` } //the latest token
-      });
-
-    	let theResponse = await theRequest();
-      verbose(`${JSON.stringify(theResponse.BatchItemResponse)}`);
-      return theResponse;
-
-    } catch (err){
-
-      console.error(`error: ${JSON.stringify(err)}`);
-
-      if(err.statusCode && err.statusCode===401 && !skip_refresh_token){
-        //If 401 and refresh is allowed, try refreshing the token and retrying this API call.
-        try{
-          debug(`unauthorized (status code is ${err.statusCode})`);
-          await self.refreshAccessToken();
-
-          //Recurse with 'refresh' turned off.
-          let theResponse = await self.batch(body, true);
-          return theResponse;
-
-        } catch(ex2){
-          console.error(`Error retrying batch. ${ex2.message}`);
-          throw ex2;
-        }
-      } else {
-        //self.handleError(err);
-        throw err;
-      }
-
-    }
+  async _batch(body){
+    return await this.doFetch(
+      "POST", 
+      `/batch`, 
+      null, 
+      body
+    );
   }
 
-  handleError(err){
-    if(!err || !err.name==='StatusCodeError') return;
+  handleStatusCodeError(err){
+    if(!err || err.name !== 'StatusCodeError') return;
 
     if(err.error && err.error.Fault ){
       err.error.Fault.Error.forEach( function(x){
@@ -339,64 +288,287 @@ class QboConnector extends EventEmitter{
   }
 
 
+  /**
+   * Internal method to make an API call using node-fetch.
+   * 
+   * @param {string} method GET|POST|PUT|DELETE
+   * @param {string} url api endpoint url (without query parameters)
+   * @param {object} query hash of query string parameters to be added to the url
+   * @param {object} payload for POST, PUT methods, the data payload to be sent
+   * @param {object} options hash of additional options
+   * @param {object} options.headers hash of headers. Specifying the headers option completely
+   * replaces the default headers.
+   */
+  async doFetch(method, url, query, payload, options){
+    if(!this.refresh_token || !this.access_token || !this.realm_id){
+      if(this.credential_initializer){
+        let creds = await this.credential_initializer.call();
+        verbose(`Obtained credentials from initializer:${JSON.stringify(creds)}.`);
+        if(creds){
+          this.setCredentials(creds);
+        }
+      } else {
+        throw new Error("Missing credentials. Please provide them explicitly, or use an initializer function.")
+      }
+    }
+    if(!options){
+      options = {};
+    }
+    if(!options.retries){
+      options.retries = 0;
+    }
+
+    let fetchOpts = {
+      method,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': USER_AGENT
+      },
+    };
+
+    if(this.access_token){
+      fetchOpts.headers.Authorization = `Bearer ${this.access_token}`;
+    }
+
+    if(options && options.headers){
+      fetchOpts.headers = options.headers;
+    }
+    
+    let qstring = '';
+    if(query){
+      qstring = qs.stringify(query);
+      qstring = '?'+qstring;
+    }
+    let full_url = `${this.base_url}/company/${this.realm_id}${url}${qstring}`;
+    
+    if(payload){
+      if(fetchOpts.headers['Content-Type']==='application/x-www-form-urlencoded'){
+        fetchOpts.body = payload
+        verbose(`  raw payload: ${payload}`);
+      } else {
+        //assume json
+        fetchOpts.body = JSON.stringify(payload);
+        verbose(`  JSON payload: ${JSON.stringify(payload)}`);
+      
+      }
+    }
+
+    try{
+      debug(`${method}${options.entityName?' '+options.entityName:''} ${full_url}`);
+      
+      let response = await fetch(full_url, fetchOpts);
+
+      let result = null;
+      if(response.ok){
+        debug(`  ...OK HTTP-${response.status}`);
+        result = await response.json();
+        verbose(`  response payload: ${JSON.stringify(result)}`);
+      } else {
+        debug(`  ...Error. HTTP-${response.status}`);
+    
+        //Note: Some APIs return HTML or text depending on status code...
+        let result = await response.json();
+        if (response.status >=300 & response.status < 400){
+          //redirection
+        } else if (response.status >=400 & response.status < 500){
+          if(response.status === 401 || response.status === 403){
+            debug(result.error);
+            //These will be retried once after attempting to refresh the access token.
+            throw new ApiAuthError(JSON.stringify(result));
+          }
+          //client errors
+          verbose(`  client error. response payload: ${JSON.stringify(result)}`);
+        } else if (response.status >=500) {
+          //server side errors
+          verbose(`  server error. response payload: ${JSON.stringify(result)}`);
+        } else { 
+          throw err; //Cannot be handled.
+        }
+        return result;
+      }
+      return result;
+
+    }catch(err){
+      if(err instanceof ApiAuthError){
+        if(options.retries < 1){
+          debug(`Attempting to refresh access token...`);
+          //Refresh the access token.
+          await this.refreshAccessToken();
+          
+          options.retries ++;
+          debug(`...refreshed OK.`);
+          //Retry the request
+          return this.doFetch(method, url, query, payload, options);
+        } else {
+          throw err;
+        }
+
+      }
+      //Unhandled errors are noted and re-thrown.
+      console.error(err);
+      throw err;
+    }
+  }
+
+  /**
+   * Handles API responses that are not in the normal HTTP OK code range (e.g. 200) in a consistent manner.
+   * Also identifies and throws authorization errors which may be used to trigger refresh-token handling.
+   * @param {object} response the fetch response (without any of the data methods invoked) 
+   * @param {string} url the full url used for the API call
+   * @param {object} fetchOpts the options used by node-fetch
+   */
+  async handleNotOk(response, url, fetchOpts){
+    debug(`  ...Error. HTTP-${response.status}`);
+    
+    //Note: Some APIs return HTML or text depending on status code...
+    let result = await response.json();
+    if (response.status >=300 & response.status < 400){
+      //redirection
+    } else if (response.status >=400 & response.status < 500){
+      if(response.status === 401 || response.status === 403){
+        debug(result.error);
+        //These will be retried once after attempting to refresh the access token.
+        throw new ApiAuthError(JSON.stringify(result));
+      }
+      //client errors
+      verbose(`  client error. response payload: ${JSON.stringify(result)}`);
+    } else if (response.status >=500) {
+      //server side errors
+      verbose(`  server error. response payload: ${JSON.stringify(result)}`);
+    } else { 
+      throw err; //Cannot be handled.
+    }
+    return result;
+   
+  }
+
 
 
 
   /**
-    Refreshes the access token. Internally used to reset the access token.
+   * Obtains a new access token and refresh token for an authorization code. Internally used to reset the access token.
+   * 
+   * @param {string} code received from the callback response.
+   * @param {string} redirect_uri a valid redirect URI for your app.
+   * @param {string} realm_id received from the callback response.
+   * 
+   * @returns the access token data payload
+   * @emits `token.refreshed` with the data payload
+   * @example 
+   *  {
+   *    token_type: "Bearer"
+   *    access_token: string,
+   *    expires_in: number, //(number of seconds access token lives),
+   *    refresh_token: string,
+   *    x_refresh_token_expires_in: number //(number of seconds refresh token lives)
+   *  }
+   * 
+   */
+  async exchangeCodeForAccessToken(code, redirect_uri, realm_id){
+    verbose(`Exchanging code for access token.\n  code: ${code}\n  redirect uri: ${redirect_uri}\n  realm id:${realm_id}`)
+    let fetchOpts = {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': USER_AGENT,
+        'Authorization': `Basic ${Buffer.from(this.client_id+':'+this.client_secret).toString('base64')}`,
+      },
+      body: `code=${encodeURIComponent(code)}&grant_type=authorization_code&redirect_uri=${encodeURIComponent(redirect_uri)}`
+    };
 
-     An event 'token.refresh' is published when a token has been successfully refreshed.
-     Event payload example:
-     @example: {
-      token_type: 'string',
-      access_token: 'string',
-      expires: 'duration in seconds',
-      refresh_token : 'string',
-      x_refresh_token_expires_in: 'duration in seconds'
-      };
-  */
+    verbose(`Sending: ${fetchOpts.body}`);
+    let result = await fetch(TOKEN_ENDPOINT, fetchOpts); 
+    let response = await result.json();
+
+    let credentials = {};
+    Object.assign(credentials, response); //copy the data onto the credentials object.
+
+    /*
+      {
+        token_type: "Bearer"
+        access_token: string,
+        expires_in: integer (number of seconds access token lives),
+      }
+    */
+   
+    this.access_token = credentials.access_token;
+    if(credentials.refresh_token){
+      //The refresh token should not be overwritten if it is not present.
+      this.refresh_token = credentials.refresh_token;
+    }
+
+    //If realm id not included on the response, take it from the method parameters.
+    if(!credentials.realm_id && realm_id){
+      credentials.realm_id = realm_id;
+    }
+
+    //Internally set the realm id here, if avaialble.
+    if(credentials.realm_id){
+      this.realm_id = credentials.realm_id;
+    }
+
+    verbose(`New access token info:\n${JSON.stringify(credentials,null,2)}`)
+    this.emit('token.refreshed', credentials);
+
+  }
+
+  
+  /**
+   * Refreshes the access token. Internally used to reset the access token.
+   * 
+   * @returns the access token data payload
+   * @emits `token.refreshed` with the data payload
+   * @example 
+   *  {
+   *    token_type: "Bearer"
+   *    access_token: string,
+   *    expires_in: number, //(number of seconds access token lives),
+   *    refresh_token: string,
+   *    x_refresh_token_expires_in: number //(number of seconds refresh token lives)
+   *  }
+   * 
+   */
   async refreshAccessToken(){
-    var self = this;
     try{
-      debug('Refreshing QuickBooks Online API access token.')
-      let response = await request({
-          method : 'POST',
-          url : TOKEN_ENDPOINT,
-          headers:{
-            'User-Agent': '@apigrate-qbo/1.0 Apigrate QuickBooks Online Connector for NodeJS',
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          auth:{
-            username: self.client_id,
-            password: self.client_secret
-          },
-          form: {
-            grant_type: 'refresh_token',
-            refresh_token: self.refresh_token
-            // ,client_id: self.client_id,
-            // client_secret: self.client_secret
-          },
-          json: true
-        });
-
-      //Internally, adjust the tokens, but also broadcast an event so other entities can see it.
-      self.access_token = response.access_token;
-      self.refresh_token = response.refresh_token;
-      //response.token_type;
-      //response.expires;
-      //response.x_refresh_token_expires_in;
-      var info = {
-        token_type: response.token_type,
-        access_token: response.access_token,
-        expires: response.expires,
-        refresh_token : response.refresh_token,
-        x_refresh_token_expires_in: response.x_refresh_token_expires_in
+      debug('Refreshing Intuit access token.')
+      let fetchOpts = {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': USER_AGENT,
+          'Authorization': `Basic ${Buffer.from(this.client_id+':'+this.client_secret).toString('base64')}`,
+        },
+        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(this.refresh_token)}`
       };
+
+      verbose(`Sending: ${fetchOpts.body}`)
+      let response = await fetch(TOKEN_ENDPOINT, fetchOpts); 
+      if(!response.ok){
+        let result = await response.json();
+        throw new Error(`...access token refresh unsuccessful. (HTTP-${response.status}): ${JSON.stringify(result)}`);
+      }
+
+
+      let result = await response.json();
+      verbose(`Received:\n${JSON.stringify(result)}`);
+    
+      var info = {
+        token_type: result.token_type,
+        access_token: result.access_token,
+        expires_in: result.expires_in,
+        refresh_token : result.refresh_token,
+        x_refresh_token_expires_in: result.x_refresh_token_expires_in
+      };
+
+      this.setCredentials(info);
 
       verbose(`New access token info:\n${JSON.stringify(info,null,2)}`)
-      self.emit('token.refreshed', info);
+      this.emit('token.refreshed', info);
 
-      return response;
+      return info;
 
     }catch(err){
       console.error(`Error refreshing access token. ${err.message}`)
@@ -406,42 +578,36 @@ class QboConnector extends EventEmitter{
   }
 
   /**
-   * Disconnects the user from QBO (invalidates the access token and request token).
+   * Disconnects the user from Intuit QBO API (invalidates the access token and request token).
    * After calling this method, the user will be forced to authenticate again.
    * Emits the "token.revoked" event, handing back the data passed back from QBO.
    */
   async disconnect(){
-    var self = this;
     try{
 
-      debug(`Disconnecting from the QuickBooks Online API.`)
-
-      let response = await request({
-        method : 'POST',
-        url : self.revocationEndpoint,
-        headers:{
-          'User-Agent': '@apigrate-qbo/1.0 Apigrate QuickBooks Online Connector for NodeJS',
+      debug(`Disconnecting from the Intuit API.`)
+      let fetchOpts = {
+        method: 'POST',
+        headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'User-Agent': USER_AGENT,
+          'Authorization': `Basic ${Buffer.from(this.client_id+':'+this.client_secret).toString('base64')}`,
         },
-        auth:{
-          username: self.client_id,
-          password: self.client_secret
-        },
-        body: {
-          token: self.refresh_token
-        },
-        json: true
-      });
+        body: JSON.stringify({token: this.refresh_token})
+      };
+
+      let result = await fetch(REVOCATION_ENDPOINT, fetchOpts); 
+      let response = await result.json();
 
       verbose(`Disconnection result:\n${JSON.stringify(response,null,2)}`)
 
-      self.emit('token.revoked', response);
+      this.emit('token.revoked', response);
 
       return response;
 
     }catch(err){
-      console.error(`Error during QuickBooks disconnection process. ${JSON.stringify(err,null,2)}`)
+      console.error(`Error during Intuit API disconnection process. ${JSON.stringify(err,null,2)}`)
       throw err;
     }
   }
@@ -450,7 +616,7 @@ class QboConnector extends EventEmitter{
 exports.QboConnector=QboConnector;
 
 /**
-  Returns a fully populated validation URL to be used for initiating an OAuth request.
+  Returns a fully populated validation URL to be used for initiating an Intuit OAuth request.
   @param {string} client_id Identifies which app is making the request
   @param {string} redirectUri Determines where the response is sent. The value
     of this parameter must exactly match one of the values listed for this app in the app settings.
@@ -462,7 +628,7 @@ exports.QboConnector=QboConnector;
   1. code (what you exchange for a token)
   2. realmId - this identifies the QBO company and should be used
 */
-exports.getQuickBooksAuthorizationUrl = function(client_id, redirectUri, state){
+exports.getIntuitAuthorizationUrl = function(client_id, redirectUri, state){
 
   var url = `${AUTHORIZATION_ENDPOINT}`
     + `?client_id=${encodeURIComponent(client_id)}`
@@ -474,29 +640,7 @@ exports.getQuickBooksAuthorizationUrl = function(client_id, redirectUri, state){
   return url;
 }
 
-/**
-  Issues a POST request to obtain an access token. Note that this will callback to
-  the specified redirect URI.
 
-  @returns a promised response for the executed request.
-*/
-exports.getQuickBooksAccessToken = function(client_id, client_secret, code, redirect_uri){
-  return request({
-    method : 'POST',
-    url : TOKEN_ENDPOINT,
-    headers:{
-      'User-Agent': '@apigrate-qbo/1.0 Apigrate QuickBooks Online Connector for NodeJS',
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    auth:{
-      username: client_id,
-      password: client_secret
-    },
-    form: {
-      code: code,
-      grant_type: 'authorization_code',
-      redirect_uri: redirect_uri
-    },
-    json: true
-  });
-}
+class ApiError extends Error {};
+class ApiAuthError extends Error {};
+exports.ApiError = ApiError;
