@@ -47,7 +47,7 @@ class QboConnector extends EventEmitter{
     this.base_url = config.base_url || 'https://quickbooks.api.intuit.com/v3';
 
     this.registry = [
-      //Transactional
+      //transaction entities
       { handle: 'Bill',             name: 'Bill',             fragment: 'bill',           query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'BillPayment',      name: 'BillPayment',      fragment: 'billpayment',    query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'CreditMemo',       name: 'CreditMemo',       fragment: 'creditmemo',     query:true,  create:true,  read: true,  update: true,  delete: true },
@@ -63,7 +63,7 @@ class QboConnector extends EventEmitter{
       { handle: 'TimeActivity',     name: 'TimeActivity',     fragment: 'timeactivity',   query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'Transfer',         name: 'Transfer',         fragment: 'transfer',       query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'VendorCredit',     name: 'VendorCredit',     fragment: 'vendorcredit',   query:true,  create:true,  read: true,  update: true,  delete: true },
-      //Named List
+      //named list entities
       { handle: 'Account',            name: 'Account',          fragment: 'account',           query: true,  create:true,  read: true,  update: true,  delete: false },
       { handle: 'Budget',             name: 'Budget',           fragment: 'budget',            query: true,  create:false, read: true,  update: false, delete: false },
       { handle: 'Class',              name: 'Class',            fragment: 'class',             query: true,  create:true,  read: true,  update: true,  delete: false },
@@ -81,10 +81,38 @@ class QboConnector extends EventEmitter{
       { handle: 'Term',               name: 'Term',             fragment: 'term',              query: true,  create:true,  read: true,  update: true,  delete: false },
       { handle: 'Vendor',             name: 'Vendor',           fragment: 'vendor',            query: true,  create:true,  read: true,  update: true,  delete: false },
       { handle: 'Attachable',         name: 'Attachable',       fragment: 'attachable',        query: true,  create:true,  read: true,  update: true,  delete: true },
+      //supporting entities
       { handle: 'CompanyInfo',        name: 'CompanyInfo',      fragment: 'companyinfo',       query: true,  create:false, read: true,  update: true,  delete: false },
       { handle: 'Preferences',        name: 'Preferences',      fragment: 'preferences',       query: true,  create:false, read: true,  update: true,  delete: false },
       //reports
-      { handle: 'TransactionListReport',  name: 'TransactionListReport',  fragment: 'TransactionList',  report: true },
+      { handle: 'AccountListDetailReport',          name: 'AccountList',                  fragment: 'AccountList',                report: true },
+      { handle: 'APAgingDetailReport',              name: 'AgedPayableDetail',            fragment: 'AgedPayableDetail',          report: true },
+      { handle: 'APAgingSummaryReport',             name: 'AgedPayables',                 fragment: 'AgedPayables',               report: true },
+      { handle: 'ARAgingDetailReport',              name: 'AgedReceivableDetail',         fragment: 'AgedReceivableDetail',       report: true },
+      { handle: 'ARAgingSummaryReport',             name: 'AgedReceivables',              fragment: 'AgedReceivables',            report: true },
+      { handle: 'BalanceSheetReport',               name: 'BalanceSheet',                 fragment: 'BalanceSheet',               report: true },
+      { handle: 'CashFlowReport',                   name: 'CashFlow',                     fragment: 'CashFlow',                   report: true },
+      { handle: 'CustomerBalanceReport',            name: 'CustomerBalance',              fragment: 'CustomerBalance',            report: true },
+      { handle: 'CustomerBalanceDetailReport',      name: 'CustomerBalanceDetail',        fragment: 'CustomerBalanceDetail',      report: true },
+      { handle: 'CustomerIncomeReport',             name: 'CustomerIncome',               fragment: 'CustomerIncome',             report: true },
+      { handle: 'GeneralLedgerReport',              name: 'GeneralLedger',                fragment: 'GeneralLedger',              report: true },
+      { handle: 'GeneralLedgerReportFR',            name: 'GeneralLedgerFR',              fragment: 'GeneralLedgerFR',            report: true }, //FR locale
+      { handle: 'InventoryValuationSummaryReport',  name: 'InventoryValuationSummary',    fragment: 'InventoryValuationSummary',  report: true },
+      { handle: 'JournalReport',                    name: 'JournalReport',                fragment: 'JournalReport',              report: true },
+      { handle: 'ProfitAndLossReport',              name: 'ProfitAndLoss',                fragment: 'ProfitAndLoss',              report: true },
+      { handle: 'ProfitAndLossDetailReport',        name: 'ProfitAndLossDetail',          fragment: 'ProfitAndLossDetail',        report: true },
+      { handle: 'SalesByClassSummaryReport',        name: 'ClassSales',                   fragment: 'ClassSales',                 report: true },
+      { handle: 'SalesByCustomerReport',            name: 'CustomerSales',                fragment: 'CustomerSales',              report: true },
+      { handle: 'SalesByDepartmentReport',          name: 'DepartmentSales',              fragment: 'DepartmentSales',            report: true },
+      { handle: 'SalesByProductReport',             name: 'ItemSales',                    fragment: 'ItemSales',                  report: true },
+      { handle: 'TaxSummaryReport',                 name: 'TaxSummary',                   fragment: 'TaxSummary',                 report: true },
+      { handle: 'TransactionListReport',            name: 'TransactionList',              fragment: 'TransactionList',            report: true },
+      { handle: 'TrialBalanceReportFR',             name: 'TrialBalanceFR',               fragment: 'TrialBalanceFR',             report: true }, //FR locale
+      { handle: 'TrialBalanceReport',               name: 'TrialBalance',                 fragment: 'TrialBalance',               report: true },
+      { handle: 'VendorBalanceReport',              name: 'VendorBalance',                fragment: 'VendorBalance',              report: true },
+      { handle: 'VendorBalanceDetailReport',        name: 'VendorBalanceDetail',          fragment: 'VendorBalanceDetail',        report: true },
+      { handle: 'VendorExpensesReport',             name: 'VendorExpenses',               fragment: 'VendorExpenses',             report: true },
+
     ];
 
     this.accounting={};
