@@ -10,6 +10,11 @@ const AUTHORIZATION_ENDPOINT = 'https://appcenter.intuit.com/connect/oauth2';
 const TOKEN_ENDPOINT = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
 const REVOCATION_ENDPOINT = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke';
 const USER_AGENT = 'Apigrate QuickBooks NodeJS Connector/3.x';
+const PRODUCTION_API_BASE_URL = 'https://quickbooks.api.intuit.com/v3';
+const SANDBOX_API_BASE_URL = 'https://sandbox-quickbooks.api.intuit.com/v3';
+
+exports.PRODUCTION_API_BASE_URL = PRODUCTION_API_BASE_URL;
+exports.SANDBOX_API_BASE_URL = SANDBOX_API_BASE_URL;
 
 /**
  * NodeJS QuickBooks connector class. 
@@ -23,11 +28,12 @@ class QboConnector extends EventEmitter{
    * 
    * @constructor 
    * @param {object} config 
-   * @param {string} config.client_id 
-   * @param {string} config.client_secret 
-   * @param {string} config.access_token 
-   * @param {string} config.refresh_token 
-   * @param {string} config.realm_id 
+   * @param {string} config.client_id (required) the Intuit-generated client id for your app 
+   * @param {string} config.client_secret (required) the Intuit-generate client secret for your app
+   * @param {string} config.redirect_uri (required) a valid OAuth2 redirect URI for your app 
+   * @param {string} config.access_token access token obtained via the OAuth2 process
+   * @param {string} config.refresh_token  refresh token obtained via the Oauth2 process, used to obtain access tokens automatically when they expire
+   * @param {string} config.realm_id company identifer for the QuickBooks instance
    * @param {string} config.base_url defaults to 'https://quickbooks.api.intuit.com/v3' if not provided. If you are testing with a sandbox 
    * environment, consult the documentation for the base url to use (e.g. 'https://sandbox-quickbooks.api.intuit.com/v3')
    * @param {number} config.minor_version optional minor version to use on API calls to the QuickBooks API
@@ -37,14 +43,21 @@ class QboConnector extends EventEmitter{
    */
   constructor(config){
     super();
+    
+    if(!config.client_id || !config.client_secret || !config.redirect_uri){
+      throw new Error(`Invalid configuration. The "client_id", "client_secret", and "redirect_uri" properties are all required.`);
+    }
     this.client_id=config.client_id;
     this.client_secret=config.client_secret;
+    this.redirect_uri=config.redirect_uri;
+
     this.access_token=config.access_token || null;
     this.refresh_token=config.refresh_token || null;
     this.realm_id=config.realm_id || null;
+
     this.minor_version = config.minor_version || null;
     this.credential_initializer = config.credential_initializer || null;
-    this.base_url = config.base_url || 'https://quickbooks.api.intuit.com/v3';
+    this.base_url = config.base_url || PRODUCTION_API_BASE_URL;
 
     this.registry = [
       //transaction entities
@@ -80,8 +93,8 @@ class QboConnector extends EventEmitter{
       { handle: 'TaxService',         name: 'TaxService',       fragment: 'taxservice',        query: true,  create:true,  read: false, update: false, delete: false },
       { handle: 'Term',               name: 'Term',             fragment: 'term',              query: true,  create:true,  read: true,  update: true,  delete: false },
       { handle: 'Vendor',             name: 'Vendor',           fragment: 'vendor',            query: true,  create:true,  read: true,  update: true,  delete: false },
-      { handle: 'Attachable',         name: 'Attachable',       fragment: 'attachable',        query: true,  create:true,  read: true,  update: true,  delete: true },
       //supporting entities
+      { handle: 'Attachable',         name: 'Attachable',       fragment: 'attachable',        query: true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'CompanyInfo',        name: 'CompanyInfo',      fragment: 'companyinfo',       query: true,  create:false, read: true,  update: true,  delete: false },
       { handle: 'Preferences',        name: 'Preferences',      fragment: 'preferences',       query: true,  create:false, read: true,  update: true,  delete: false },
       //reports
@@ -133,6 +146,10 @@ class QboConnector extends EventEmitter{
       this.access_token = creds.access_token;
     }
     if(creds.refresh_token){
+      if(this.refresh_token && this.refresh_token !== creds.refresh_token){
+        //Informational. Intuit sent a replacement refresh token that is different than the one currently stored.
+        debug(`A replacement refresh_token "${creds.refresh_token}" was detected.`);
+      }
       this.refresh_token = creds.refresh_token;
     }
     if(creds.realm_id){
@@ -144,7 +161,7 @@ class QboConnector extends EventEmitter{
   /**
    * Get the object through which you can interact with the QuickBooks Online Accounting API.
    */
-  acccountingApi(){
+  accountingApi(){
 
     var self = this;
     self.registry.forEach( function(e){
@@ -254,7 +271,7 @@ class QboConnector extends EventEmitter{
     @param {object} qs query string hash
   */
   async _get(entityName, uri, qs){
-    return await this.doFetch(
+    return this.doFetch(
       "GET", 
       `${uri}`, 
       qs, 
@@ -265,7 +282,7 @@ class QboConnector extends EventEmitter{
 
 
   async _post(entityName, uri, qs, body){
-    return await this.doFetch(
+    return this.doFetch(
       "POST", 
       `${uri}`, 
       qs, 
@@ -276,45 +293,14 @@ class QboConnector extends EventEmitter{
 
 
   async _batch(body){
-    return await this.doFetch(
+    return this.doFetch(
       "POST", 
       `/batch`, 
       null, 
       body
     );
   }
-
-  handleStatusCodeError(err){
-    if(!err || err.name !== 'StatusCodeError') return;
-
-    if(err.error && err.error.Fault ){
-      err.error.Fault.Error.forEach( function(x){
-        switch(x.code){
-          case "500":
-            console.error(`${x.Detail}. Recommendation: possible misconfiguration the entity name is not recognized.`)
-            break;
-          case "610":
-            //Entity is not found.
-            break;
-          case "2010":
-            console.error(`${x.Detail}. Recommendation: check the properties on your payload.`)
-
-            break;
-          case "4000":
-            console.error(`${x.Detail}. Recommendation: check punctuation in your query. For example, you might be using double quotes instead of single quotes.`)
-            break;
-          case "4001":
-            console.error(`${x.Detail}. Recommendation: check your entity and attribute names to make sure the match QuickBooks API specifications.`)
-            break;
-          default:
-            console.error(x.Detail);
-            break;
-        }
-
-      });
-    }
-  }
-
+ 
 
   /**
    * Internal method to make an API call using node-fetch.
@@ -400,18 +386,42 @@ class QboConnector extends EventEmitter{
         if (response.status >=300 & response.status < 400){
           //redirection
         } else if (response.status >=400 & response.status < 500){
-          if(response.status === 401 || response.status === 403){
-            debug(result.error);
+          if(response.status === 401 ){
             //These will be retried once after attempting to refresh the access token.
             throw new ApiAuthError(JSON.stringify(result));
           }
           //client errors
-          verbose(`  client error. response payload: ${JSON.stringify(result)}`);
+          let explain = '';
+          if(result && result.Fault ){
+            result.Fault.Error.forEach( function(x){
+              //This function just logs output (or returns the result if "not found")
+              switch(x.code){
+                case "610":
+                  //Entity is not found, return result
+                  return result;
+                case "500":
+                  explain += `\nError code ${x.code}. ${x.Detail}. Recommendation: possible misconfiguration the entity name is not recognized.`;
+                  break;
+                case "2010":
+                  explain += `\nError code ${x.code}. ${x.Detail}. Recommendation: possible misconfiguration the entity name is not recognized.`;
+                  break;
+                case "4000":
+                  explain += `\nError code ${x.code}. ${x.Detail}. Recommendation: check your query, including punctuation etc. For example, you might be using double quotes instead of single quotes.`;
+                  break;
+                case "4001":
+                  explain += `\nError code ${x.code}. ${x.Detail}. Recommendation: check your entity and attribute names to make sure the match QuickBooks API specifications.`;
+                  break;
+                default:
+                  explain += `\nError code ${x.code}. ${x.Detail}.`;
+              }
+            });
+          }
+          throw new ApiError(`Client Error (HTTP ${response.status}) ${explain}`, result);
+          
         } else if (response.status >=500) {
           //server side errors
           verbose(`  server error. response payload: ${JSON.stringify(result)}`);
-        } else { 
-          throw err; //Cannot be handled.
+          throw new ApiError(`Server Error (HTTP ${response.status})`, result);
         }
         return result;
       }
@@ -422,7 +432,7 @@ class QboConnector extends EventEmitter{
         if(options.retries < 1){
           debug(`Attempting to refresh access token...`);
           //Refresh the access token.
-          await this.refreshAccessToken();
+          await this.getAccessToken();
           
           options.retries ++;
           debug(`...refreshed OK.`);
@@ -433,54 +443,19 @@ class QboConnector extends EventEmitter{
         }
 
       }
-      //Unhandled errors are noted and re-thrown.
-      console.error(err);
+      //All other errors are re-thrown.
       throw err;
     }
   }
 
   /**
-   * Handles API responses that are not in the normal HTTP OK code range (e.g. 200) in a consistent manner.
-   * Also identifies and throws authorization errors which may be used to trigger refresh-token handling.
-   * @param {object} response the fetch response (without any of the data methods invoked) 
-   * @param {string} url the full url used for the API call
-   * @param {object} fetchOpts the options used by node-fetch
-   */
-  async handleNotOk(response, url, fetchOpts){
-    debug(`  ...Error. HTTP-${response.status}`);
-    
-    //Note: Some APIs return HTML or text depending on status code...
-    let result = await response.json();
-    if (response.status >=300 & response.status < 400){
-      //redirection
-    } else if (response.status >=400 & response.status < 500){
-      if(response.status === 401 || response.status === 403){
-        debug(result.error);
-        //These will be retried once after attempting to refresh the access token.
-        throw new ApiAuthError(JSON.stringify(result));
-      }
-      //client errors
-      verbose(`  client error. response payload: ${JSON.stringify(result)}`);
-    } else if (response.status >=500) {
-      //server side errors
-      verbose(`  server error. response payload: ${JSON.stringify(result)}`);
-    } else { 
-      throw err; //Cannot be handled.
-    }
-    return result;
-   
-  }
-
-
-
-
-  /**
-   * Obtains a new access token and refresh token for an authorization code. Internally used to reset the access token.
+   * Calls the Intuit OAuth2 token endpoint for either an authorization_code grant (if the code is provided) or a
+   * refresh_token grant. In either case the internal credentials are refreshed, and the "token.refreshed" event is
+   * omitted with the credentials returned so they can be stored securely for subsequent use.
    * 
-   * @param {string} code received from the callback response.
-   * @param {string} redirect_uri a valid redirect URI for your app.
-   * @param {string} realm_id received from the callback response.
-   * 
+   * @param {string} code (optional) authorization code obtained from the user consent part of the OAuth2 flow.
+   * If provided, the method assumes an authorization_code grant type is being requested; otherwise the refresh_token
+   * grant type is assumed. 
    * @returns the access token data payload
    * @emits `token.refreshed` with the data payload
    * @example 
@@ -491,119 +466,48 @@ class QboConnector extends EventEmitter{
    *    refresh_token: string,
    *    x_refresh_token_expires_in: number //(number of seconds refresh token lives)
    *  }
-   * 
    */
-  async exchangeCodeForAccessToken(code, redirect_uri, realm_id){
-    verbose(`Exchanging code for access token.\n  code: ${code}\n  redirect uri: ${redirect_uri}\n  realm id:${realm_id}`)
+  async getAccessToken(code){
     let fetchOpts = {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': USER_AGENT,
-        'Authorization': `Basic ${Buffer.from(this.client_id+':'+this.client_secret).toString('base64')}`,
-      },
-      body: `code=${encodeURIComponent(code)}&grant_type=authorization_code&redirect_uri=${encodeURIComponent(redirect_uri)}`
+        'Authorization': `Basic ${Buffer.from( this.client_id+':'+this.client_secret ).toString('base64')}`,
+      } 
     };
+    verbose(`Headers: ${JSON.stringify(fetchOpts.headers, null, 2)}`);
+    let grant_type = 'refresh_token';
+    if(code){
+      grant_type = 'authorization_code';
+      debug(`Exchanging authorization code for an Intuit access token...`);
+      fetchOpts.body = `code=${encodeURIComponent(code)}&grant_type=${grant_type}&redirect_uri=${encodeURIComponent(this.redirect_uri)}`;
+    } else {
+      debug('Refreshing Intuit access token...');
+      fetchOpts.body = `grant_type=${grant_type}&refresh_token=${encodeURIComponent(this.refresh_token)}`;
+    }
 
     verbose(`Sending: ${fetchOpts.body}`);
-    let result = await fetch(TOKEN_ENDPOINT, fetchOpts); 
-    let response = await result.json();
+    let response = await fetch(TOKEN_ENDPOINT, fetchOpts); 
+    if(!response.ok){
+      debug('...unsuccessful.')
+      let result = await response.json();
+      throw new Error(`Unsuccessful ${grant_type} grant. (HTTP-${response.status}): ${JSON.stringify(result)}`);
+    }
 
+    let result = await response.json();
+    verbose(`Received:\n${JSON.stringify(result)}`);
+  
     let credentials = {};
-    Object.assign(credentials, response); //copy the data onto the credentials object.
+    Object.assign(credentials, result);
+    this.setCredentials(credentials);
 
-    /*
-      {
-        token_type: "Bearer"
-        access_token: string,
-        expires_in: integer (number of seconds access token lives),
-      }
-    */
-   
-    this.access_token = credentials.access_token;
-    if(credentials.refresh_token){
-      //The refresh token should not be overwritten if it is not present.
-      this.refresh_token = credentials.refresh_token;
-    }
-
-    //If realm id not included on the response, take it from the method parameters.
-    if(!credentials.realm_id && realm_id){
-      credentials.realm_id = realm_id;
-    }
-
-    //Internally set the realm id here, if avaialble.
-    if(credentials.realm_id){
-      this.realm_id = credentials.realm_id;
-    }
-
-    verbose(`New access token info:\n${JSON.stringify(credentials,null,2)}`)
     this.emit('token.refreshed', credentials);
 
+    return credentials;
   }
 
-  
-  /**
-   * Refreshes the access token. Internally used to reset the access token.
-   * 
-   * @returns the access token data payload
-   * @emits `token.refreshed` with the data payload
-   * @example 
-   *  {
-   *    token_type: "Bearer"
-   *    access_token: string,
-   *    expires_in: number, //(number of seconds access token lives),
-   *    refresh_token: string,
-   *    x_refresh_token_expires_in: number //(number of seconds refresh token lives)
-   *  }
-   * 
-   */
-  async refreshAccessToken(){
-    try{
-      debug('Refreshing Intuit access token.')
-      let fetchOpts = {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': USER_AGENT,
-          'Authorization': `Basic ${Buffer.from(this.client_id+':'+this.client_secret).toString('base64')}`,
-        },
-        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(this.refresh_token)}`
-      };
-
-      verbose(`Sending: ${fetchOpts.body}`)
-      let response = await fetch(TOKEN_ENDPOINT, fetchOpts); 
-      if(!response.ok){
-        let result = await response.json();
-        throw new Error(`...access token refresh unsuccessful. (HTTP-${response.status}): ${JSON.stringify(result)}`);
-      }
-
-
-      let result = await response.json();
-      verbose(`Received:\n${JSON.stringify(result)}`);
-    
-      var info = {
-        token_type: result.token_type,
-        access_token: result.access_token,
-        expires_in: result.expires_in,
-        refresh_token : result.refresh_token,
-        x_refresh_token_expires_in: result.x_refresh_token_expires_in
-      };
-
-      this.setCredentials(info);
-
-      verbose(`New access token info:\n${JSON.stringify(info,null,2)}`)
-      this.emit('token.refreshed', info);
-
-      return info;
-
-    }catch(err){
-      console.error(`Error refreshing access token. ${err.message}`)
-      throw err;
-    }
-
-  }
 
   /**
    * Disconnects the user from Intuit QBO API (invalidates the access token and request token).
@@ -646,7 +550,7 @@ exports.QboConnector=QboConnector;
 /**
   Returns a fully populated validation URL to be used for initiating an Intuit OAuth request.
   @param {string} client_id Identifies which app is making the request
-  @param {string} redirectUri Determines where the response is sent. The value
+  @param {string} redirect_uri Determines where the response is sent. The value
     of this parameter must exactly match one of the values listed for this app in the app settings.
   @param {string} state Provides any state that might be useful to your application upon receipt
     of the response. The Intuit Authorization Server roundtrips this parameter, so your application
@@ -656,12 +560,12 @@ exports.QboConnector=QboConnector;
   1. code (what you exchange for a token)
   2. realmId - this identifies the QBO company and should be used
 */
-exports.getIntuitAuthorizationUrl = function(client_id, redirectUri, state){
+exports.getIntuitAuthorizationUrl = function(client_id, redirect_uri, state){
 
   var url = `${AUTHORIZATION_ENDPOINT}`
     + `?client_id=${encodeURIComponent(client_id)}`
     + `&scope=${encodeURIComponent('com.intuit.quickbooks.accounting')}`
-    + `&redirect_uri=${encodeURIComponent(redirectUri)}`
+    + `&redirect_uri=${encodeURIComponent(redirect_uri)}`
     + `&response_type=code`
     + `&state=${encodeURIComponent(state)}`;
 
@@ -669,6 +573,11 @@ exports.getIntuitAuthorizationUrl = function(client_id, redirectUri, state){
 }
 
 
-class ApiError extends Error {};
+class ApiError extends Error {
+  constructor(msg, payload){
+    super(msg);
+    this.payload = payload;//Stores the Intuit response.
+  }
+};
 class ApiAuthError extends Error {};
 exports.ApiError = ApiError;
