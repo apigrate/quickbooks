@@ -12,6 +12,7 @@ let credentialsStorage = new AwsStorage(process.env.AWS_BUCKET, `credentials/int
 const qbo = new QboConnector({
   client_id: process.env.INTUIT_CLIENT_ID,
   client_secret: process.env.INTUIT_CLIENT_SECRET,
+  redirect_uri: process.env.INTUIT_REDIRECT_URI,
   credential_initializer: async ()=>{return credentialsStorage.get(); }
 });
 qbo.on("token.refreshed", async (creds)=>{
@@ -77,7 +78,7 @@ exports.intuitCallback = async (event, context, callback) => {
   qbo.realm_id = event.queryStringParameters.realmId;//Must be saved here.
   
   try{
-    let result = await qbo.exchangeCodeForAccessToken( event.queryStringParameters.code, process.env.INTUIT_REDIRECT_URI, event.queryStringParameters.realmId );//fires the "token" event to store the credentials
+    let result = await qbo.getAccessToken( event.queryStringParameters.code );//fires the "token" event to store the credentials
 
     debug('...access token info:\n'+ JSON.stringify(result));
 
@@ -95,7 +96,6 @@ exports.intuitCallback = async (event, context, callback) => {
       body: `<html><body><h3>Authorization to the Intuit Quickbooks Online API failed.</h3><p>Reason: <code>${ex.message}</code></p></body></html>`
     });
   }
-  
 
 };
 
@@ -122,7 +122,7 @@ exports.intuitRefreshCredentials = async (event, context, callback) => {
     let creds = await credentialsStorage.get();
     debug(`...retrieved credentials successfully.`);
 
-    let refreshInfo = await qbo.refreshAccessToken(creds.refresh_token);//fires the "token" event to store the credentials
+    let refreshInfo = await qbo.getAccessToken();//fires the "token" event to store the credentials
     debug(`...refreshed and stored credentials successfully.`);
 
     creds.access_token = refreshInfo.access_token;

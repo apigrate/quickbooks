@@ -1,17 +1,18 @@
 require('dotenv').config();
 
-const {getIntuitAuthorizationUrl, QboConnector} = require('../../index');
+const {QboConnector, ApiError} = require('../../index');
 const {AwsStorage} = require('./storage');
 let credentialsStorage = new AwsStorage(process.env.AWS_BUCKET, `credentials/intuit/${process.env.NODE_ENV}-credentials.json`);
 
-const qbo = new QboConnector({
+const connector = new QboConnector({
   client_id: process.env.INTUIT_CLIENT_ID,
   client_secret: process.env.INTUIT_CLIENT_SECRET,
+  redirect_uri: process.env.INTUIT_REDIRECT_URI,
   base_url: 'https://sandbox-quickbooks.api.intuit.com/v3', //sandbox!
   credential_initializer: async ()=>{return credentialsStorage.get(); }
 });
 
-qbo.on("token.refreshed", async (creds)=>{
+connector.on("token.refreshed", async (creds)=>{
   try{
     if(!creds||!creds.access_token){
       throw new Error(JSON.stringify(creds));
@@ -21,7 +22,7 @@ qbo.on("token.refreshed", async (creds)=>{
     if(!current) current = {};
     let updated = Object.assign(current, creds);
     await credentialsStorage.set(updated);
-    onsole.log('...success.');
+    console.log('...success.');
   }catch(ex){
     console.error('Error storing Intuit credentials. '+ ex.message)
     console.error(ex);
@@ -31,17 +32,45 @@ qbo.on("token.refreshed", async (creds)=>{
 (async () => {
 
   try{
-    let qboApi = await qbo.acccountingApi();
+    let qbo = await connector.accountingApi();
     let result = null;
 
-    result = await qboApi.Item.query(`SELECT * from Item WHERE Active=true`);
+    // Perform a query.
+    // result = await qbo.Item.query(`SELECT * from Item WHERE Active=true MAXRESULTS 3`);
 
-    // result = await qboApi.TransactionListReport.query({start_date: '2019-01-01', end_date: '2020-04-01'});
+    // Create an entity.
+
+
+    // Update an entity.
+
+
+    // Delete an entity.
+
+
+    // Run a report.
+    // result = await qbo.CustomerIncomeReport.query({start_date: '2019-01-01', end_date: '2020-04-01'});
+
+    // Error handling
+    result = await qbo.Item.create({
+      "Name": "Body Armor",
+      "Type": "Inventory"
+      //This will fail because there are many more fields required...
+    });
 
     console.log(`Result:\n${JSON.stringify(result, null, 2)}`);
   }catch(ex){
-    console.error(ex);
+    if(ex instanceof ApiError){
+      console.error("API error.");
+      console.error(ex.message);
+      console.error(ex.payload);
+      console.error(ex.stack);
+    } else {
+      console.error("Other error.");
+      console.error(ex);
+    }
+    
   }
 
 })()
+
 
