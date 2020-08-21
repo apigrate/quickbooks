@@ -337,6 +337,42 @@ try{
 ```
 Note that since you can mix the type of entity on batch requests, this method is not namespaced on entities (it is available directly on the `qbo` object).
 
+### Run a Report
+Run any report simply by using the `query` method on each Report entity, providing report input parameters on the argument as a hash. For example:
+```javascript
+let result = await qbo.CustomerIncomeReport.query(
+  {
+    start_date: '2019-01-01', 
+    end_date: '2020-04-01'
+  }
+);
+```
+`result` (detail removed for length):
+```json
+{
+  "Header": {
+    "Time": "2020-08-21T15:04:49-07:00",
+    "ReportName": "CustomerIncome",
+    "ReportBasis": "Accrual",
+    "StartPeriod": "2019-01-01",
+    "EndPeriod": "2020-04-01",
+    "Currency": "USD",
+    "Option": [
+      {
+        "Name": "NoReportData",
+        "Value": "false"
+      }
+    ]
+  },
+  "Columns": {
+    ...etc
+  },
+  "Rows": {
+    ...etc
+  }
+}
+```
+
 ### Error Handling
 
 API-specific errors (typically HTTP-4xx) responses, are trapped and thrown with the `ApiError` class. Here's an example:
