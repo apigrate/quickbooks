@@ -20,14 +20,12 @@
   "homepage": "https://github.com/apigrate/quickbooks#readme",
   "dependencies": {
     "debug": "^4.1.1",
-    "moment": "^2.24.0",
     "node-fetch": "^2.6.0",
-    "query-string": "^6.13.1",
-    "uuid": "^8.3.0"
+    "query-string": "^6.13.1"
   },
   "devDependencies": {
-    "express": "^4.17.1",
-    "pug": "^2.0.4",
-    "aws-sdk": "^2.737.0"
+    "aws-sdk": "^2.737.0",
+    "dotenv": "^8.2.0",
+    "uuid": "^8.3.0"
   }
 }
