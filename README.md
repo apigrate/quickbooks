@@ -145,12 +145,19 @@ You make QuickBooks Accounting API calls by using the object returned from the `
 
 ### Query
 Query any kind of object using the Intuit query syntax. 
+
+**Entity.query(statement, opts)**
+* `statement` (**string**) a query statement ([see Data queries](https://developer.intuit.com/app/developer/qbo/docs/develop/explore-the-quickbooks-online-api/data-queries)) for the entity you are working with
+* `opts` (**object**, optional)
+  * `reqid` (**string**, optional) unique request id that Intuit uses to "replay" transaction in case of errors. Sending a request id is not required, but it is considered a best-practice.
+  * `minor_version` (**number**, optional) an API request-specific minor version to use for the request. Overrides the `minor_version` constructor argument, if one was provided.
+
 ```javascript
 let result = await qbo.Item.query(
   `select * from Item where Active=true and Type='Inventory'`
   );
 ```
-`result`:
+The `result` is:
 ```json
 {
   "QueryResponse": {
@@ -199,10 +206,18 @@ let result = await qbo.Item.query(
 
 ### Get By ID
 All you need is an entity ID and you can retrieve the full entity details.
+
+**Entity.get(id, opts)**
+* `id` (**number**) the id for the entity you want to retrieve
+* `opts` (**object**, optional)
+  * `reqid` (**string**, optional) unique request id that Intuit uses to "replay" transaction in case of errors. Sending a request id is not required, but it is considered a best-practice.
+  * `minor_version` (**number**, optional) an API request-specific minor version to use for the request. Overrides the `minor_version` constructor argument, if one was provided.
+
+**Example: get an Item:**
 ```javascript
 let result = await qbo.Item.get(11);
 ```
-`result`:
+The `result` is:
 ```json
 {
   "Item": {
@@ -231,10 +246,16 @@ let result = await qbo.Item.get(11);
 }
 ```
 
-### Create and Update
-There are `.create()` and `.update()` methods for entities that support them. Sparse updates are supported where applicable, but keep in mind that for most QuickBooks entities, you'll need to send in the full list of writeable fields on update.
+### Create
+The  `.create()` method is used to create entities. Keep in mind, some fields can be conditionally required depending on the type of entity you are creating.
 
-The returned data is the same for both `.create()` and `.update()`.
+**Entity.create(payload, opts)**
+* `payload` (**object**) an object payload containing all the writeable fields of the object you want to create. 
+* `opts` (**object**, optional)
+  * `reqid` (**string**, optional) unique request id that Intuit uses to "replay" transaction in case of errors. Sending a request id is not required, but it is considered a best-practice.
+  * `minor_version` (**number**, optional) an API request-specific minor version to use for the request. Overrides the `minor_version` constructor argument, if one was provided.
+
+**Example: Creating an Item**
 ```javascript
 let result = await qbo.Item.create({
   "Name": 'Widget',
@@ -245,7 +266,7 @@ let result = await qbo.Item.create({
   }
 });
 ```
-`result`:
+The `result` is:
 ```json
 {
   "Item": {
@@ -274,24 +295,153 @@ let result = await qbo.Item.create({
 }
 ```
 
-### Delete
-Most transactional entities support deletion, but only a few named-list entities do.
-
+**Example: Create a Bill**
 ```javascript
-let result = qbo.Invoice.delete({
-  "Id": 153,
-  "SyncToken": 0 //this is also required
+let result = await qbo.Bill.create({
+  "Line": [
+    {
+      "DetailType": "AccountBasedExpenseLineDetail", 
+      "Amount": 200.0, 
+      "Id": "1", 
+      "AccountBasedExpenseLineDetail": {
+        "AccountRef": {
+          "value": "7"
+        }
+      }
+    }
+  ], 
+  "VendorRef": {
+    "value": "42"
+  }
 });
 ```
-`result`:
+The `result` is:
 ```json
 {
-  "Invoice": {
+  "Bill": {
+    "DueDate": "2020-08-25",
+    "Balance": 200,
+    "domain": "QBO",
+    "sparse": false,
+    "Id": "145",
+    "SyncToken": "0",
+    "MetaData": {
+      "CreateTime": "2020-08-25T06:27:05-07:00",
+      "LastUpdatedTime": "2020-08-25T06:27:05-07:00"
+    },
+    "TxnDate": "2020-08-25",
+    "CurrencyRef": {
+      "value": "USD",
+      "name": "United States Dollar"
+    },
+    "Line": [
+      {
+        "Id": "1",
+        "LineNum": 1,
+        "Amount": 200,
+        "LinkedTxn": [],
+        "DetailType": "AccountBasedExpenseLineDetail",
+        "AccountBasedExpenseLineDetail": {
+          "AccountRef": {
+            "value": "7",
+            "name": "Advertising"
+          },
+          "BillableStatus": "NotBillable",
+          "TaxCodeRef": {
+            "value": "NON"
+          }
+        }
+      }
+    ],
+    "VendorRef": {
+      "value": "42",
+      "name": "Lee Advertising"
+    },
+    "APAccountRef": {
+      "value": "33",
+      "name": "Accounts Payable (A/P)"
+    },
+    "TotalAmt": 200
+  },
+  "time": "2020-08-25T06:27:05.412-07:00"
+}
+```
+
+### Update
+The  and `.update()` method is used to update an API entity. When updating entities, most entities support a "full update" mode, where you are expected to send the entire set of fields to be updated (anything missing is set to to null). Therefore, it is recommended you:
+1. fetch the full entity first, 
+1. modify the fields you want to changes, 
+1. send the full object back as part of the update operation.  
+See the [Intuit QuickBooks Online API Documentation](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities) to find out more for further details on the entity you are working with.
+
+**Entity.update(payload, opts)**
+* `payload` (**object**) an object payload containing all the writeable fields of the object you want to update. 
+* `opts` (**object**, optional)
+  * `reqid` (**string**, optional) unique request id that Intuit uses to "replay" transaction in case of errors. Sending a request id is not required, but it is considered a best-practice.
+  * `minor_version` (**number**, optional) an API request-specific minor version to use for the request. Overrides the `minor_version` constructor argument, if one was provided.
+
+**Example: Update an Item**
+```javascript
+let existing = await qbo.Item.get(19);
+existing.Item.Name="Rubber Ducky";
+let result = await qbo.Item.update(existing.Item);
+```
+The `result` is:
+```json
+{
+  "Item": {
+    "Name": "Rubber Ducky",
+    "Active": true,
+    "FullyQualifiedName": "Rubber Ducky",
+    "Taxable": false,
+    "UnitPrice": 0,
+    "Type": "Service",
+    "IncomeAccountRef": {
+      "value": "79",
+      "name": "Sales of Product Income"
+    },
+    "PurchaseCost": 0,
+    "TrackQtyOnHand": false,
+    "domain": "QBO",
+    "sparse": false,
+    "Id": "21",
+    "SyncToken": "1",
+    "MetaData": {
+      "CreateTime": "2018-11-13T14:41:34-08:00",
+      "LastUpdatedTime": "2019-08-28T12:05:02-08:00"
+    }
+  },
+  "time": "2019-08-28T12:05:02.148-08:00"
+}
+```
+
+### Delete
+Most transactional entities support deletion, but only a few named-list entities do. When deleting, you'll need both the `Id` and the `SyncToken`. Similar to `update()` method, it is usually best to retrieve an entity immediately before you delete it to obtain the latest `SyncToken`. 
+
+>You can think of `SyncToken` as a "version number" of the entity  you're working with. It is a mechanism to prevent two people from simultaneously making changes to the same entity at the same time. 
+
+**Entity.delete(payload, opts)**
+* `payload` (**object**) an object payload containing both the `Id` and the `SyncToken` properties of the object you want to delete.
+* `opts` (**object**, optional)
+  * `reqid` (**string**, optional) unique request id that Intuit uses to "replay" transaction in case of errors. Sending a request id is not required, but it is considered a best-practice.
+  * `minor_version` (**number**, optional) an API request-specific minor version to use for the request. Overrides the `minor_version` constructor argument, if one was provided.
+
+**Example: Delete a Bill**
+```javascript
+let result = await qbo.Bill.delete({
+  "Id": 145,
+  "SyncToken": 0 
+});
+```
+The `result` is:
+```json
+{
+  "Bill": {
     "domain": "QBO",
     "status": "Deleted",
-    "Id": "153"
+    "Id": "145"
   },
-  "time": "2018-11-13T15:18:40.109-08:00"
+  "time": "2020-08-25T06:48:57.291-07:00"
 }
 ```
 
@@ -299,6 +449,13 @@ let result = qbo.Invoice.delete({
 
 ### Batch Requests
 Batch requests (submitting multiple operations with one request) ARE supported! Here is a code example. This deletes multiple time activities, but you can mix your own types of transactions. They do not need to be the same type of entity or operation.
+
+**Entity.batch(payload, opts)**
+* `payload` (**object**) an object payload containing the batch request. (See the [Intuit documentation](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/batch) for details about how to perform batch operations).
+* `opts` (**object**, optional)
+  * `reqid` (**string**, optional) unique request id that Intuit uses to "replay" transaction in case of errors. Sending a request id is not required, but it is considered a best-practice.
+  * `minor_version` (**number**, optional) an API request-specific minor version to use for the request. Overrides the `minor_version` constructor argument, if one was provided.
+
 
 ```javascript
 try{
@@ -338,7 +495,15 @@ try{
 Note that since you can mix the type of entity on batch requests, this method is not namespaced on entities (it is available directly on the `qbo` object).
 
 ### Run a Report
-Run any report simply by using the `query` method on each Report entity, providing report input parameters on the argument as a hash. For example:
+Run any report simply by using the `query` method on each Report entity, providing report input parameters on the argument as a hash. 
+
+**ReportEntity.query(parms, opts)**
+* `parms` (**object**) an object whose properties will be used as the request parameters for the report.
+* `opts` (**object**, optional)
+  * `reqid` (**string**, optional) unique request id that Intuit uses to "replay" transaction in case of errors. Sending a request id is not required, but it is considered a best-practice.
+  * `minor_version` (**number**, optional) an API request-specific minor version to use for the request. Overrides the `minor_version` constructor argument, if one was provided.
+
+**Example: Run the Customer Income Report**
 ```javascript
 let result = await qbo.CustomerIncomeReport.query(
   {
@@ -347,7 +512,7 @@ let result = await qbo.CustomerIncomeReport.query(
   }
 );
 ```
-`result` (detail removed for length):
+The `result` is:
 ```json
 {
   "Header": {
@@ -372,10 +537,13 @@ let result = await qbo.CustomerIncomeReport.query(
   }
 }
 ```
+> (Some detail removed for length)
 
 ### Error Handling
 
-API-specific errors (typically HTTP-4xx) responses, are trapped and thrown with the `ApiError` class. Here's an example:
+API-specific errors (typically HTTP-4xx) responses, are trapped and thrown with the `ApiError` class. An `ApiThrottlingError` is also available. It is a subclass of `ApiError` and is thrown when HTTP-429 responses are encountered, indicating the API request limits were reached. 
+
+**Example: Attempted create that fails because of missing fields**
 
 ```javascript
 const {ApiError} = require('@apigrate/quickbooks');
@@ -383,13 +551,13 @@ try{
   let result = qbo.Item.create({
     "Name": "Body Armor",
     "Type": "Inventory"
-    //This will fail because there are many more fields required...
+    //This will fail because there are other fields required...
   });
 
 } catch (err){
   if(err instanceof ApiError){
-    err.message; //containsa parsed error message,
-    err.payload; //contains error payload, if one was returned
+    err.message; //contains a readable, parsed error message,
+    err.payload; //the object payload of the error, if one was returned
   }
 
 }
