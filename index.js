@@ -20,13 +20,9 @@ exports.SANDBOX_API_BASE_URL = SANDBOX_API_BASE_URL;
  * NodeJS QuickBooks connector class. 
  * 
  * @version 3.x
- * @example
- *  
  */
 class QboConnector extends EventEmitter{
   /**
-   * 
-   * @constructor 
    * @param {object} config 
    * @param {string} config.client_id (required) the Intuit-generated client id for your app 
    * @param {string} config.client_secret (required) the Intuit-generate client secret for your app
@@ -36,7 +32,9 @@ class QboConnector extends EventEmitter{
    * @param {string} config.realm_id company identifer for the QuickBooks instance
    * @param {string} config.base_url defaults to 'https://quickbooks.api.intuit.com/v3' if not provided. If you are testing with a sandbox 
    * environment, consult the documentation for the base url to use (e.g. 'https://sandbox-quickbooks.api.intuit.com/v3')
-   * @param {number} config.minor_version optional minor version to use on API calls to the QuickBooks API
+   * @param {number} config.minor_version optional minor version to use on API calls to the QuickBooks API. This will become the default minor version applied to all
+   * API calls. You can override the minor_version on specific calls, by providing it as an options argument on the API call. 
+   * See https://developer.intuit.com/app/developer/qbo/docs/develop/explore-the-quickbooks-online-api/minor-versions to learn more about minor versions.
    * @param {function} config.credential_initializer optional function returning an object with the initial credentials to be used, of the form
    * `{ access_token, refresh_token, realm_id}`. This function is invoked on the first API method invocation automatically. If you omit this function, you'll need
    * to call the setCredentials method prior to your first API method invocation. 
@@ -167,12 +165,14 @@ class QboConnector extends EventEmitter{
     self.registry.forEach( function(e){
       var options = {name: e.name, fragment: e.fragment };
       if(e.create){
-        options.create = function(payload, reqid){
+        options.create = function(payload, opts){
           var qs = {};
-          if(reqid){
-            qs.requestid=reqid ;
+          if(opts && opts.reqid){
+            qs.requestid=opts.reqid ;
           }
-          if(self.minor_version){
+          if(opts && opts.minor_version){
+            qs.minorversion = opts.minor_version;
+          } else if(self.minor_version){
             qs.minorversion = self.minor_version;
           }
           return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
@@ -180,12 +180,14 @@ class QboConnector extends EventEmitter{
       }
 
       if(e.update){
-        options.update = function(payload, reqid){
+        options.update = function(payload, opts){
           var qs = {operation: 'update'};
-          if(reqid){
-            qs.requestid=reqid ;
+          if(opts && opts.reqid){
+            qs.requestid=opts.reqid ;
           }
-          if(self.minor_version){
+          if(opts && opts.minor_version){
+            qs.minorversion = opts.minor_version;
+          } else if(self.minor_version){
             qs.minorversion = self.minor_version;
           }
           return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
@@ -193,12 +195,16 @@ class QboConnector extends EventEmitter{
       }
 
       if(e.read){
-        options.get = function(id, reqid){
+        options.get = function(id, opts){
           var qs = null;
-          if(reqid){
-            qs = { requestid: reqid };
+          if(opts && opts.reqid){
+            if(!qs) qs = {};
+            qs.requestid=opts.reqid ;
           }
-          if(self.minor_version){
+          if(opts && opts.minor_version){
+            if(!qs) qs = {};
+            qs.minorversion = opts.minor_version;
+          } else if(self.minor_version){
             if(!qs) qs = {};
             qs.minorversion = self.minor_version;
           }
@@ -207,12 +213,14 @@ class QboConnector extends EventEmitter{
       }
 
       if(e['delete']){
-        options.delete = function(payload, reqid){
+        options.delete = function(payload, opts){
           var qs = {operation: 'delete'};
-          if(reqid){
-            qs.requestid=reqid ;
+          if(opts && opts.reqid){
+            qs.requestid=opts.reqid ;
           }
-          if(self.minor_version){
+          if(opts && opts.minor_version){
+            qs.minorversion = opts.minor_version;
+          } else if(self.minor_version){
             qs.minorversion = self.minor_version;
           }
           return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
@@ -220,17 +228,19 @@ class QboConnector extends EventEmitter{
       }
 
       if(e.query){
-        options.query = function(queryStatement, reqid){
+        options.query = function(queryStatement, opts){
           if(!queryStatement){
             queryStatement = `select * from ${e.name}`;
           }
           var qs = {
             query: queryStatement
           };
-          if(reqid){
-            qs.requestid = reqid;
+          if(opts && opts.reqid){
+            qs.requestid=opts.reqid ;
           }
-          if(self.minor_version){
+          if(opts && opts.minor_version){
+            qs.minorversion = opts.minor_version;
+          } else if(self.minor_version){
             if(!qs) qs = {};
             qs.minorversion = self.minor_version;
           }
@@ -240,13 +250,15 @@ class QboConnector extends EventEmitter{
       }
 
       if(e.report){
-        options.query = function(parms, reqid){
+        options.query = function(parms, opts){
           
           var qs = parms || {};
-          if(reqid){
-            qs.requestid = reqid;
+          if(opts && opts.reqid){
+            qs.requestid=opts.reqid ;
           }
-          if(self.minor_version){
+          if(opts && opts.minor_version){
+            qs.minorversion = opts.minor_version;
+          } else if(self.minor_version){
             if(!qs) qs = {};
             qs.minorversion = self.minor_version;
           }
@@ -389,6 +401,9 @@ class QboConnector extends EventEmitter{
           if(response.status === 401 ){
             //These will be retried once after attempting to refresh the access token.
             throw new ApiAuthError(JSON.stringify(result));
+          } else if (response.status === 429 ){
+            //API Throttling Error
+            throw new ApiThrottlingError("API request limit reached.", result);
           }
           //client errors
           let explain = '';
@@ -396,9 +411,6 @@ class QboConnector extends EventEmitter{
             result.Fault.Error.forEach( function(x){
               //This function just logs output (or returns the result if "not found")
               switch(x.code){
-                case "610":
-                  //Entity is not found, return result
-                  return result;
                 case "500":
                   explain += `\nError code ${x.code}. ${x.Detail}. Recommendation: possible misconfiguration the entity name is not recognized.`;
                   break;
@@ -416,6 +428,7 @@ class QboConnector extends EventEmitter{
               }
             });
           }
+          if(!explain) explain = JSON.stringify(result);
           throw new ApiError(`Client Error (HTTP ${response.status}) ${explain}`, result);
           
         } else if (response.status >=500) {
@@ -572,12 +585,19 @@ exports.getIntuitAuthorizationUrl = function(client_id, redirect_uri, state){
   return url;
 }
 
-
+/** An API error from the connector, typically including a captured `payload` object you can work with to obtain more information about the error and how to handle it. */
 class ApiError extends Error {
   constructor(msg, payload){
     super(msg);
     this.payload = payload;//Stores the Intuit response.
   }
 };
-class ApiAuthError extends Error {};
+/** Specific type of API error indicating the API request limit has been reached. */
+class ApiThrottlingError extends ApiError {
+  constructor(msg, payload){
+    super(msg, payload);
+  }
+}
+class ApiAuthError extends Error {};//only used internally.
 exports.ApiError = ApiError;
+exports.ApiThrottlingError = ApiThrottlingError;
