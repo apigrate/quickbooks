@@ -20,10 +20,11 @@
  * Authorization data is stored securely in Amazon S3.
  */
 const debug = require('debug')('gr8:quickbooks:aws');
-
-const {QboConnector} = require('../../index');
-const {AwsStorage} = require('./storage');
+const { v4: uuidv4 } = require('uuid');
+const {QboConnector,getIntuitAuthorizationUrl} = require('@apigrate/quickbooks'); // require('../../');
+const {AwsStorage} = require('../helpers/aws-storage');
 let credentialsStorage = new AwsStorage(process.env.AWS_BUCKET, `credentials/intuit/${process.env.NODE_ENV}-credentials.json`);
+let stateStorage = new AwsStorage(process.env.AWS_BUCKET, `credentials/intuit/${process.env.NODE_ENV}-state.json`);
 
 const qbo = new QboConnector({
   client_id: process.env.INTUIT_CLIENT_ID,
@@ -94,7 +95,7 @@ exports.intuitCallback = async (event, context, callback) => {
   qbo.realm_id = event.queryStringParameters.realmId;//Must be saved here.
   
   try{
-    let result = await qbo.getAccessToken( event.queryStringParameters.code );//fires the "token" event to store the credentials
+    let result = await qbo.getAccessToken( event.queryStringParameters.code, event.queryStringParameters.realmId );//fires the "token" event to store the credentials
 
     debug('...access token info:\n'+ JSON.stringify(result));
 
