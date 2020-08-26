@@ -150,7 +150,7 @@ class QboConnector extends EventEmitter{
    * the corresponding internal property will NOT be set.
    * @param {object} creds
    * @param {string} creds.access_token the Intuit access token 
-   * @param {string} creds.realm_id the Intuit realm_id
+   * @param {string} creds.realm_id the Intuit realm (company id)
    * @param {string} creds.refresh_token the Intuit refresh token 
    */
   setCredentials(creds){
@@ -484,6 +484,7 @@ class QboConnector extends EventEmitter{
    * @param {string} code (optional) authorization code obtained from the user consent part of the OAuth2 flow.
    * If provided, the method assumes an authorization_code grant type is being requested; otherwise the refresh_token
    * grant type is assumed. 
+   * @param {string} realm_id (conditional) required when the code is provided. Identifies the quickbooks company. Internally sets the realm_id on the connector.
    * @returns the access token data payload
    * @emits `token.refreshed` with the data payload
    * @example 
@@ -495,7 +496,8 @@ class QboConnector extends EventEmitter{
    *    x_refresh_token_expires_in: number //(number of seconds refresh token lives)
    *  }
    */
-  async getAccessToken(code){
+  async getAccessToken(code, realm_id){
+    this.realm_id = realm_id;
     let fetchOpts = {
       method: 'POST',
       headers: {
@@ -529,6 +531,13 @@ class QboConnector extends EventEmitter{
   
     let credentials = {};
     Object.assign(credentials, result);
+    if(realm_id){
+      credentials.realm_id=realm_id;//Important!
+    }
+    if(result.realmId){//Note spelling.
+      //If realmId is ever returned explicitly, use it.
+      credentials.realm_id=result.realmId;
+    }
     this.setCredentials(credentials);
 
     this.emit('token.refreshed', credentials);
@@ -585,8 +594,8 @@ exports.QboConnector=QboConnector;
     receives the same value it sent. Including a CSRF token in the state is recommended.
   @return the authorization URL string with all parameters set and encoded.
   Note, when the redirectUri is invoked, it will contain the following query parameters:
-  1. code (what you exchange for a token)
-  2. realmId - this identifies the QBO company and should be used
+  1. `code` (what you exchange for a token)
+  2. `realmId` - this identifies the QBO company and should be used (note spelling)
 */
 exports.getIntuitAuthorizationUrl = function(client_id, redirect_uri, state){
 

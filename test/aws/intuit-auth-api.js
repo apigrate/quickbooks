@@ -92,8 +92,6 @@ exports.intuitCallback = async (event, context, callback) => {
 
   debug(`Exchanging code for access token...\ncode: ${event.queryStringParameters.code}\nrealmId:${event.queryStringParameters.realmId}`);
 
-  qbo.realm_id = event.queryStringParameters.realmId;//Must be saved here.
-  
   try{
     let result = await qbo.getAccessToken( event.queryStringParameters.code, event.queryStringParameters.realmId );//fires the "token" event to store the credentials
 
