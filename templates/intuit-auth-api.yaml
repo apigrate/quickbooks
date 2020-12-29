@@ -27,7 +27,7 @@ Parameters:
   lambdaExecutionRole:
     Description: 'Required. The role used for lambda execution.'
     Type: 'String'
-    Default: 'arn:aws:iam::330926059339:role/LambdaExecutionRole'
+    Default: 'arn:aws:iam::nnnnnnnnnnnnnn:role/LambdaExecutionRole'
 
 Globals:
   Function:
@@ -35,16 +35,15 @@ Globals:
     Timeout: 180
     Environment:
       Variables:
-        AWS_BUCKET: '{{resolve:ssm:BUCKET_APPINFO:1}}'
+        AWS_BUCKET: 'my secure bucket'
         DEBUG: gr8:quickbooks,gr8:quickbooks:aws
         NODE_ENV: test
-        INTUIT_CLIENT_ID: '{{resolve:ssm:TEST_INTUIT_CLIENT_ID:1}}'
-        INTUIT_CLIENT_SECRET: '{{resolve:ssm:TEST_INTUIT_CLIENT_SECRET:1}}'
+        INTUIT_CLIENT_ID: 'my app client id'
+        INTUIT_CLIENT_SECRET: 'my app client secret'
         INTUIT_REDIRECT_URI:
-          Fn::Sub: 'https://hlpxj0s089.execute-api.${AWS::Region}.${AWS::URLSuffix}/prod/intuit/connected'
+          Fn::Sub: 'https://xxxxxxxxxx.execute-api.${AWS::Region}.${AWS::URLSuffix}/prod/intuit/connected'
 
 Resources:
-  #Endpoints for the TD Ameritrade OAuth2 process.
   intuitApi:
     Type: 'AWS::Serverless::Api'
     Properties:

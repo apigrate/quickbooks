@@ -71,5 +71,5 @@ config/*.js
 
 test/*.js
 
-pkg.*
+pkg-*.yaml
 
