@@ -490,6 +490,7 @@ class QboConnector extends EventEmitter{
    * @example 
    *  {
    *    token_type: "Bearer"
+   *    realm_id: string,
    *    access_token: string,
    *    expires_in: number, //(number of seconds access token lives),
    *    refresh_token: string,
