@@ -1,6 +1,6 @@
 {
   "name": "@apigrate/quickbooks",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "NodeJS API Connector for the Intuit QuickBooks API.",
   "main": "index.js",
   "scripts": {
@@ -20,7 +20,7 @@
   "homepage": "https://github.com/apigrate/quickbooks#readme",
   "dependencies": {
     "debug": "^4.1.1",
-    "node-fetch": "^2.6.0",
+    "node-fetch": "^2.6.1",
     "query-string": "^6.13.1"
   },
   "devDependencies": {

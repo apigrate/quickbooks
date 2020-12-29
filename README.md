@@ -115,8 +115,8 @@ let qbo = await connector.accountingApi();
 * **client_secret** (*string*, required) Intuit assigned client secret for your app.
 * **redirect_uri** (*string*, required) A valid, registered redirect URI for your app. Note, for production, this must be an SSL link (HTTPS).
 * **access_token** (*string*, conditional) Bearer token for use in API call Authorization header. You should obtain this from your own storage.
-* **refresh_token** (*string*, conditional)  Token to refresh access_token when it expires. You should obtain thie from your own storage.
-* **realm_id** *number* (*string*, conditional) Intuit company identifier, used in API call URLs. You should obtain thie from your own storage.
+* **refresh_token** (*string*, conditional)  Token to refresh access_token when it expires. You should obtain this from your own storage.
+* **realm_id** *number* (*string*, conditional) Intuit company identifier, used in API call URLs. You should obtain this from your own storage.
 * **credential_initializer** (*function*, conditional) An asyncronous function that initializes the `access_token`, `refresh_token`, and `realm_id`; it is designed to bbe used in lieu of providing them as constructor arguments. The function you implement must return a credentials object of the form: `{ access_token, refresh_token, realm_id}`. This function is invoked on the first API method invocation automatically. If you omit this function, you'll need to call the `setCredentials` method with an object of the same structure prior to your first API method invocation. 
 * **minorversion** (*number*, optional)  specifying the QuickBooks API minor version parameter to be passed through on each API call
 * **baseUrl** (*string*, conditional) The Intuit base URL for API calls. When not provided, it defaults to the Intuit production base URL for the API: `https://quickbooks.api.intuit.com/v3`. However for QuickBooks sandbox use, **you must provide it explicitly**: `https://sandbox-quickbooks.api.intuit.com/v3`
