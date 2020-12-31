@@ -556,27 +556,41 @@ class QboConnector extends EventEmitter{
     try{
 
       debug(`Disconnecting from the Intuit API.`)
-      let fetchOpts = {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': USER_AGENT,
-          'Authorization': `Basic ${Buffer.from(this.client_id+':'+this.client_secret).toString('base64')}`,
-        },
-        body: JSON.stringify({token: this.refresh_token})
-      };
+      if(this.credential_initializer){
+        //Get latest credentials before disconnecting.
+        let creds = await this.credential_initializer.call();
+        verbose(`Obtained credentials from initializer:${JSON.stringify(creds)}.`);
+        if(creds){
+          this.setCredentials(creds);
+        }
+      }
+      if(this.refresh_token){  
+        let payload = {token: this.refresh_token}
+        verbose(`Disconnection payload:\n${JSON.stringify(payload)}`);
+        let fetchOpts = {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${Buffer.from(this.client_id+':'+this.client_secret).toString('base64')}`,
+            'Content-Type': 'application/json',
+            'User-Agent': USER_AGENT,
+          },
+          body: JSON.stringify(payload)
+        };
 
-      let result = await fetch(REVOCATION_ENDPOINT, fetchOpts); 
-      let response = await result.json();
-
-      verbose(`Disconnection result:\n${JSON.stringify(response,null,2)}`)
-
-      this.emit('token.revoked', response);
-
-      return response;
+        let response = await fetch(REVOCATION_ENDPOINT, fetchOpts);
+        let result = await response.text()
+        if(response.ok){
+          this.emit('token.revoked', result);
+        } else {
+          console.warn(`Intuit responded with HTTP-${response.status} ${result}` )
+        }
+        return result;
+      } else {
+        debug("No token found to revoke.");
+      }
 
     }catch(err){
+      console.error(err);
       console.error(`Error during Intuit API disconnection process. ${JSON.stringify(err,null,2)}`)
       throw err;
     }
