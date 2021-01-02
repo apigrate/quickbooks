@@ -58,7 +58,7 @@ class QboConnector extends EventEmitter{
     super();
     
     if(!config.client_id || !config.client_secret || !config.redirect_uri){
-      throw new Error(`Invalid configuration. The "client_id", "client_secret", and "redirect_uri" properties are all required.`);
+      throw new CredentialsError(`Invalid configuration. The "client_id", "client_secret", and "redirect_uri" properties are all required.`);
     }
     this.client_id=config.client_id;
     this.client_secret=config.client_secret;
@@ -154,7 +154,7 @@ class QboConnector extends EventEmitter{
    * @param {string} creds.refresh_token the Intuit refresh token 
    */
   setCredentials(creds){
-    if(!creds) throw new Error("No credentials provided.");
+    if(!creds) throw new CredentialsError("No credentials provided.");
     if(creds.access_token){
       this.access_token = creds.access_token;
     }
@@ -348,8 +348,11 @@ class QboConnector extends EventEmitter{
         if(creds){
           this.setCredentials(creds);
         }
+        if(!this.refresh_token || !this.access_token || !this.realm_id){
+          throw new CredentialsError("Missing credentials after initializer.")
+        }
       } else {
-        throw new Error("Missing credentials. Please provide them explicitly, or use an initializer function.")
+        throw new CredentialsError("Missing credentials. Please provide them explicitly, or use an initializer function.");
       }
     }
     if(!options){
@@ -486,6 +489,7 @@ class QboConnector extends EventEmitter{
    * grant type is assumed. 
    * @param {string} realm_id (conditional) required when the code is provided. Identifies the quickbooks company. Internally sets the realm_id on the connector.
    * @returns the access token data payload
+   * @throws CredentialsError on invalid grants.
    * @emits `token.refreshed` with the data payload
    * @example 
    *  {
@@ -524,7 +528,7 @@ class QboConnector extends EventEmitter{
     if(!response.ok){
       debug('...unsuccessful.')
       let result = await response.json();
-      throw new Error(`Unsuccessful ${grant_type} grant. (HTTP-${response.status}): ${JSON.stringify(result)}`);
+      throw new CredentialsError(`Unsuccessful ${grant_type} grant. (HTTP-${response.status}): ${JSON.stringify(result)}`);
     }
 
     let result = await response.json();
@@ -638,5 +642,7 @@ class ApiThrottlingError extends ApiError {
   }
 }
 class ApiAuthError extends Error {};//only used internally.
+class CredentialsError extends Error{};//For missing/incomplete/invalid OAuth credentials.
 exports.ApiError = ApiError;
 exports.ApiThrottlingError = ApiThrottlingError;
+exports.CredentialsError = CredentialsError;
