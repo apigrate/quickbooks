@@ -50,7 +50,7 @@ class QboConnector extends EventEmitter{
    * @param {number} config.minor_version optional minor version to use on API calls to the QuickBooks API. This will become the default minor version applied to all
    * API calls. You can override the minor_version on specific calls, by providing it as an options argument on the API call. 
    * See https://developer.intuit.com/app/developer/qbo/docs/develop/explore-the-quickbooks-online-api/minor-versions to learn more about minor versions.
-   * @param {function} config.credential_initializer optional function returning an object with the initial credentials to be used, of the form
+   * @param {function} config.credential_initializer optional (but recommended) function returning an object with the initial credentials to be used, of the form
    * `{ access_token, refresh_token, realm_id}`. This function is invoked on the first API method invocation automatically. If you omit this function, you'll need
    * to call the setCredentials method prior to your first API method invocation. 
    */
@@ -468,8 +468,11 @@ class QboConnector extends EventEmitter{
           options.retries ++;
           debug(`...refreshed OK.`);
           //Retry the request
-          return this.doFetch(method, url, query, payload, options);
+          debug(`Retrying (${options.retries}) request...`);
+          let retryResult = await this.doFetch(method, url, query, payload, options);
+          return retryResult;
         } else {
+          debug(`No further retry (already retried ${options.retries} times).`);
           throw err;
         }
 
@@ -543,10 +546,25 @@ class QboConnector extends EventEmitter{
       //If realmId is ever returned explicitly, use it.
       credentials.realm_id=result.realmId;
     }
-    this.setCredentials(credentials);
-
+    
     this.emit('token.refreshed', credentials);
 
+    if(this.credential_initializer){
+      //Invalidate the current credentials
+      this.refresh_token = null;
+      this.access_token = null;
+      //... note this forces the credential intializer to be called on the 
+      // next doFetch which SHOULD pull in the new value of the credentials,
+      // assuming the function registered on 'token.refreshed' has completed 
+      // saving the credentials
+    } else {
+      //Only set credentials internally if no credential initializer has been used.
+      // This avoids a timing conflict that could occur between any registered functions 
+      // on the 'token.refreshed' event and the credential intializer and the refresh
+      // token process internally.
+      this.setCredentials(credentials);
+    }
+    
     return credentials;
   }
 
