@@ -34,7 +34,7 @@ exports.SANDBOX_API_BASE_URL = SANDBOX_API_BASE_URL;
 /**
  * NodeJS QuickBooks connector class. 
  * 
- * @version 3.x
+ * @version 3.1.x
  */
 class QboConnector extends EventEmitter{
   /**
@@ -156,16 +156,24 @@ class QboConnector extends EventEmitter{
   setCredentials(creds){
     if(!creds) throw new CredentialsError("No credentials provided.");
     if(creds.access_token){
+      if(this.access_token && this.access_token !== creds.access_token){
+        //Informational. Intuit sent a replacement access token that is different than the one currently stored.
+        debug(`A replacement access_token was detected:\n${creds.access_token}`);
+      }
       this.access_token = creds.access_token;
     }
     if(creds.refresh_token){
       if(this.refresh_token && this.refresh_token !== creds.refresh_token){
         //Informational. Intuit sent a replacement refresh token that is different than the one currently stored.
-        debug(`A replacement refresh_token "${creds.refresh_token}" was detected.`);
+        debug(`A replacement refresh_token was detected:\n${creds.refresh_token}`);
       }
       this.refresh_token = creds.refresh_token;
     }
     if(creds.realm_id){
+      if(this.realm_id && this.realm_id !== creds.realm_id){
+        //Informational. Intuit sent a replacement realm that is different than the one currently stored.
+        debug(`A replacement realm_id was detected:\n${creds.realm_id}`);
+      }
       this.realm_id = creds.realm_id;
     }
     // verbose(`${this.access_token}\n${this.refresh_token}\n${this.realm_id}`)
@@ -342,9 +350,12 @@ class QboConnector extends EventEmitter{
    */
   async doFetch(method, url, query, payload, options){
     if(!this.refresh_token || !this.access_token || !this.realm_id){
+      if(!this.refresh_token) verbose(`Missing refresh_token.`);
+      if(!this.access_token) verbose(`Missing access_token.`);
+      if(!this.realm_id) verbose(`Missing realm_id.`);
       if(this.credential_initializer){
+        verbose(`Obtaining credentials from initializer...`);
         let creds = await this.credential_initializer.call();
-        verbose(`Obtained credentials from initializer:${JSON.stringify(creds)}.`);
         if(creds){
           this.setCredentials(creds);
         }
@@ -465,7 +476,7 @@ class QboConnector extends EventEmitter{
           //Refresh the access token.
           await this.getAccessToken();
           
-          options.retries ++;
+          options.retries+=1;
           debug(`...refreshed OK.`);
           //Retry the request
           debug(`Retrying (${options.retries}) request...`);
@@ -505,7 +516,6 @@ class QboConnector extends EventEmitter{
    *  }
    */
   async getAccessToken(code, realm_id){
-    this.realm_id = realm_id;
     let fetchOpts = {
       method: 'POST',
       headers: {
@@ -539,32 +549,26 @@ class QboConnector extends EventEmitter{
   
     let credentials = {};
     Object.assign(credentials, result);
+
     if(realm_id){
-      credentials.realm_id=realm_id;//Important!
+      // if realm_id is explicitly provided, initialize with existing realm id - usually realm id is not available on a refresh
+      credentials.realm_id=realm_id; 
+    } else if (this.realm_id){
+      // otherwise use internal realm id if available
+      credentials.realm_id = this.realm_id;
     }
-    if(result.realmId){//Note spelling.
+
+    if(result.realmId){//Note spelling! Intuit calls it realmId not realm_id.
       //If realmId is ever returned explicitly, use it.
       credentials.realm_id=result.realmId;
     }
+
+    // Reset the internal credentials (this detects changes)
+    this.setCredentials(credentials);
     
+    //After the internal credentials are refreshed, emit the event.
     this.emit('token.refreshed', credentials);
 
-    if(this.credential_initializer){
-      //Invalidate the current credentials
-      this.refresh_token = null;
-      this.access_token = null;
-      //... note this forces the credential intializer to be called on the 
-      // next doFetch which SHOULD pull in the new value of the credentials,
-      // assuming the function registered on 'token.refreshed' has completed 
-      // saving the credentials
-    } else {
-      //Only set credentials internally if no credential initializer has been used.
-      // This avoids a timing conflict that could occur between any registered functions 
-      // on the 'token.refreshed' event and the credential intializer and the refresh
-      // token process internally.
-      this.setCredentials(credentials);
-    }
-    
     return credentials;
   }
 
