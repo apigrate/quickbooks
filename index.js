@@ -1,5 +1,5 @@
 /*
-  Copyright 2019-2020 Apigrate LLC
+  Copyright 2019-2021 Apigrate LLC
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -101,9 +101,9 @@ class QboConnector extends EventEmitter{
       { handle: 'Journalcode',        name: 'Journalcode',      fragment: 'journalcode',       query: true,  create:true,  read: true,  update: true,  delete: false },//FR only.
       { handle: 'PaymentMethod',      name: 'PaymentMethod',    fragment: 'paymentmethod',     query: true,  create:true,  read: true,  update: true,  delete: false },
       { handle: 'TaxAgency',          name: 'TaxAgency',        fragment: 'taxagency',         query: true,  create:true,  read: true,  update: false, delete: false },
-      { handle: 'TaxCode',            name: 'TaxCode',          fragment: 'taxcode',           query: true,  create:true,  read: true,  update: false, delete: false },
+      { handle: 'TaxCode',            name: 'TaxCode',          fragment: 'taxcode',           query: true,  create:false, read: true,  update: false, delete: false },
       { handle: 'TaxRate',            name: 'TaxRate',          fragment: 'taxrate',           query: true,  create:true,  read: true,  update: false, delete: false },
-      { handle: 'TaxService',         name: 'TaxService',       fragment: 'taxservice',        query: true,  create:true,  read: false, update: false, delete: false },
+      { handle: 'TaxService',         name: 'TaxService',       fragment: 'taxservice/taxcode',query: false, create:true,  read: false, update: false, delete: false },
       { handle: 'Term',               name: 'Term',             fragment: 'term',              query: true,  create:true,  read: true,  update: true,  delete: false },
       { handle: 'Vendor',             name: 'Vendor',           fragment: 'vendor',            query: true,  create:true,  read: true,  update: true,  delete: false },
       //supporting entities
