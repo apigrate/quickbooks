@@ -1,7 +1,5 @@
 # @apigrate/quickbooks
 
-> Latest Documentation for Version 3.x
-
 A transparent **one-stop** library for interacting with the QuickBooks Online API. It supports all the features you need to interact with the QuickBooks Online Accounting API, including:
 1. automatic OAuth2 token refresh (including an event handler)
 3. support for native promises
@@ -9,6 +7,15 @@ A transparent **one-stop** library for interacting with the QuickBooks Online AP
 5. convenience method for constructor OAuth URLs
 6. and most importantly, **complete coverage of the QuickBooks Online Accounting API**.
 
+## Version 4.0 Changes
+
+Now uses the Intuit discovery documents, dynamically loading the correct URLs from Intuit OAuth.
+
+Changes:
+* added `is_sandbox` boolean to constructor. Use this to specify sandbox vs production environment.
+
+Breaking Changes:
+* `getIntuitAuthorizationUrl` function is now an asynchronous method on the connector instance. 
 
 ## Supported Entities
 
