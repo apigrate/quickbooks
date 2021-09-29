@@ -35,27 +35,27 @@ A transparent **one-stop** library for interacting with the QuickBooks Online AP
 ***Named List Entities:***
 | Entity | reference | query | create | get by id | update | delete |
 |---|---|:---:|:---:|:---:|:---:|:---:|
-| Account | accounts | &check; | &check; | &check; | &check; | &nbsp; |
-| Budget | budgets | &check; |  &nbsp; | &check; |  &nbsp; | &nbsp; |
-| Class | classes | &check; | &check; | &check; | &check; | &nbsp; |
-| CompanyCurrency | companycurrencies | &check; | &check; | &check; | &check; | &nbsp; |
-| Customer | customers | &check; | &check; | &check; | &check; | &nbsp; |
-| Department | departments | &check; | &check; | &check; | &check; | &nbsp; |
-| Employee | employees | &check; | &check; | &check; | &check; | &nbsp; |
-| Item | items | &check; | &check; | &check; | &check; | &nbsp; |
-| Journalcode | journalcodes | &check; | &check; | &check; | &check; | &nbsp; |
-| PaymentMethod | paymentmethods | &check; | &check; | &check; | &check; | &nbsp; |
-| TaxAgency | taxagencies | &check; | &check; | &check; | &nbsp; | &nbsp; |
-| TaxCode | taxcodes | &check; | &check; | &check; | &nbsp; | &nbsp; |
-| TaxRate | taxrates | &check; | &check; | &check; | &nbsp; | &nbsp; |
-| TaxService | taxservices | &check; | &check; | &nbsp; | &nbsp; | &nbsp; |
-| Term | terms | &check; | &check; | &check; | &check; | &nbsp; |
-| Vendor | vendors | &check; | &check; | &check; | &check; | &nbsp; |
+| Account | account | &check; | &check; | &check; | &check; | &nbsp; |
+| Budget | budget | &check; |  &nbsp; | &check; |  &nbsp; | &nbsp; |
+| Class | class | &check; | &check; | &check; | &check; | &nbsp; |
+| CompanyCurrency | companycurrency | &check; | &check; | &check; | &check; | &nbsp; |
+| Customer | customer | &check; | &check; | &check; | &check; | &nbsp; |
+| Department | department | &check; | &check; | &check; | &check; | &nbsp; |
+| Employee | employee | &check; | &check; | &check; | &check; | &nbsp; |
+| Item | item | &check; | &check; | &check; | &check; | &nbsp; |
+| Journalcode | journalcode | &check; | &check; | &check; | &check; | &nbsp; |
+| PaymentMethod | paymentmethod | &check; | &check; | &check; | &check; | &nbsp; |
+| TaxAgency | taxagency | &check; | &check; | &check; | &nbsp; | &nbsp; |
+| TaxCode | taxcode | &check; | &check; | &check; | &nbsp; | &nbsp; |
+| TaxRate | taxrate | &check; | &check; | &check; | &nbsp; | &nbsp; |
+| TaxService | taxservice/taxcode | &check; | &check; | &nbsp; | &nbsp; | &nbsp; |
+| Term | term | &check; | &check; | &check; | &check; | &nbsp; |
+| Vendor | vendor | &check; | &check; | &check; | &check; | &nbsp; |
 
 ***Supporting Entities:***
 | Entity | reference | query | create | get by id | update | delete |
 |---|---|:---:|:---:|:---:|:---:|:---:|
-| Attachable | attachables | &check; | &check; | &check; | &check; | &check; |
+| Attachable | attachable | &check; | &check; | &check; | &check; | &check; |
 | CompanyInfo | companyinfo | &check; | &nbsp; | &check; | &check; | &nbsp; |
 | Preferences | preferences | &check; | &nbsp; | &check; | &check; | &nbsp; |
 
