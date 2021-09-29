@@ -21,20 +21,21 @@ var verbose = require('debug')('gr8:quickbooks:verbose');
 
 const EventEmitter = require('events');
 
-const AUTHORIZATION_ENDPOINT = 'https://appcenter.intuit.com/connect/oauth2';
-const TOKEN_ENDPOINT = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
-const REVOCATION_ENDPOINT = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke';
-const USER_AGENT = 'Apigrate QuickBooks NodeJS Connector/3.x';
-const PRODUCTION_API_BASE_URL = 'https://quickbooks.api.intuit.com/v3';
-const SANDBOX_API_BASE_URL = 'https://sandbox-quickbooks.api.intuit.com/v3';
+const DISCOVERY_URL_PRODUCTION="https://developer.api.intuit.com/.well-known/openid_configuration";
+const DISCOVERY_URL_SANDBOX="https://developer.api.intuit.com/.well-known/openid_sandbox_configuration";
+
+const USER_AGENT = 'Apigrate QuickBooks NodeJS Connector/4.x';
+
+const PRODUCTION_API_BASE_URL = 'https://quickbooks.api.intuit.com';
+const SANDBOX_API_BASE_URL = 'https://sandbox-quickbooks.api.intuit.com';
 
 exports.PRODUCTION_API_BASE_URL = PRODUCTION_API_BASE_URL;
 exports.SANDBOX_API_BASE_URL = SANDBOX_API_BASE_URL;
 
 /**
- * NodeJS QuickBooks connector class. 
+ * NodeJS QuickBooks connector class for the Intuit v3 Accounting API.
  * 
- * @version 3.1.x
+ * @version 4.0.x
  */
 class QboConnector extends EventEmitter{
   /**
@@ -45,8 +46,9 @@ class QboConnector extends EventEmitter{
    * @param {string} config.access_token access token obtained via the OAuth2 process
    * @param {string} config.refresh_token  refresh token obtained via the Oauth2 process, used to obtain access tokens automatically when they expire
    * @param {string} config.realm_id company identifer for the QuickBooks instance
-   * @param {string} config.base_url defaults to 'https://quickbooks.api.intuit.com/v3' if not provided. If you are testing with a sandbox 
-   * environment, consult the documentation for the base url to use (e.g. 'https://sandbox-quickbooks.api.intuit.com/v3')
+   * @param {boolean} config.is_sandbox boolean indicating whether this is a sandbox connection (default: false)
+   * @param {string} config.base_url defaults to either 'https://quickbooks.api.intuit.com' or 'https://sandbox-quickbooks.api.intuit.com' 
+   * (depending on sandbox setting) if not provided. 
    * @param {number} config.minor_version optional minor version to use on API calls to the QuickBooks API. This will become the default minor version applied to all
    * API calls. You can override the minor_version on specific calls, by providing it as an options argument on the API call. 
    * See https://developer.intuit.com/app/developer/qbo/docs/develop/explore-the-quickbooks-online-api/minor-versions to learn more about minor versions.
@@ -70,7 +72,18 @@ class QboConnector extends EventEmitter{
 
     this.minor_version = config.minor_version || null;
     this.credential_initializer = config.credential_initializer || null;
-    this.base_url = config.base_url || PRODUCTION_API_BASE_URL;
+    this.is_sandbox = config.is_sandbox || false;
+    this.base_url = this.is_sandbox ? SANDBOX_API_BASE_URL : PRODUCTION_API_BASE_URL; // from discovery.
+    if(config.base_url){
+      this.base_url = config.base_url;
+    }
+
+    this.endpoints = null; /*{
+      authorization_endpoint: null,
+      token_endpoint: null,
+      revocation_endpoint: null,
+    };*/
+
 
     this.registry = [
       //transaction entities
@@ -179,11 +192,28 @@ class QboConnector extends EventEmitter{
     // verbose(`${this.access_token}\n${this.refresh_token}\n${this.realm_id}`)
   }
 
+  async loadDiscoveryInfo(){
+    if(!this.endpoints){
+      try {
+        let doc_url = this.is_sandbox ? DISCOVERY_URL_SANDBOX : DISCOVERY_URL_PRODUCTION;
+        debug(`Loading discovery document from ${doc_url}`);
+        let response = await fetch(doc_url);
+        let {authorization_endpoint, token_endpoint, revocation_endpoint} = await response.json();
+        this.endpoints = {
+          authorization_endpoint,
+          token_endpoint,
+          revocation_endpoint
+        };
+      } catch (err) {
+        throw new ApiError(`Intuit Discovery Document Error: ${err.messsage}`);
+      }
+    }
+  }
+
   /**
    * Get the object through which you can interact with the QuickBooks Online Accounting API.
    */
   accountingApi(){
-
     var self = this;
     self.registry.forEach( function(e){
       var options = {name: e.name, fragment: e.fragment };
@@ -199,7 +229,7 @@ class QboConnector extends EventEmitter{
             qs.minorversion = self.minor_version;
           }
           return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
-        }
+        };
       }
 
       if(e.update){
@@ -214,7 +244,7 @@ class QboConnector extends EventEmitter{
             qs.minorversion = self.minor_version;
           }
           return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
-        }
+        };
       }
 
       if(e.read){
@@ -232,7 +262,7 @@ class QboConnector extends EventEmitter{
             qs.minorversion = self.minor_version;
           }
           return self._get.call(self, e.name, `/${e.fragment}/${id}`, qs);
-        }
+        };
       }
 
       if(e['delete']){
@@ -247,7 +277,7 @@ class QboConnector extends EventEmitter{
             qs.minorversion = self.minor_version;
           }
           return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
-        }
+        };
       }
 
       if(e.query){
@@ -269,7 +299,7 @@ class QboConnector extends EventEmitter{
           }
           
           return self._get.call(self, e.name, `/query`, qs);
-        }
+        };
       }
 
       if(e.report){
@@ -287,13 +317,13 @@ class QboConnector extends EventEmitter{
           }
           
           return self._get.call(self, e.name, `/reports/${e.fragment}`, qs);
-        }
+        };
       }
 
       self.accounting[e.handle]=options;
 
     });
-    self.accounting.batch=function(payload){ return self._batch.call(self, payload); }//and the batch method as well...
+    self.accounting.batch=function(payload){ return self._batch.call(self, payload); };//and the batch method as well...
 
     return self.accounting;
   }
@@ -360,7 +390,7 @@ class QboConnector extends EventEmitter{
           this.setCredentials(creds);
         }
         if(!this.refresh_token || !this.access_token || !this.realm_id){
-          throw new CredentialsError("Missing credentials after initializer.")
+          throw new CredentialsError("Missing credentials after initializer.");
         }
       } else {
         throw new CredentialsError("Missing credentials. Please provide them explicitly, or use an initializer function.");
@@ -395,11 +425,11 @@ class QboConnector extends EventEmitter{
       qstring = qs.stringify(query);
       qstring = '?'+qstring;
     }
-    let full_url = `${this.base_url}/company/${this.realm_id}${url}${qstring}`;
+    let full_url = `${this.base_url}/v3/company/${this.realm_id}${url}${qstring}`;
     
     if(payload){
       if(fetchOpts.headers['Content-Type']==='application/x-www-form-urlencoded'){
-        fetchOpts.body = payload
+        fetchOpts.body = payload;
         verbose(`  raw payload: ${payload}`);
       } else {
         //assume json
@@ -423,18 +453,26 @@ class QboConnector extends EventEmitter{
         debug(`  ...Error. HTTP-${response.status}`);
     
         //Note: Some APIs return HTML or text depending on status code...
-        let result = await response.json();
+        
         if (response.status >=300 & response.status < 400){
           //redirection
         } else if (response.status >=400 & response.status < 500){
           if(response.status === 401 ){
             //These will be retried once after attempting to refresh the access token.
-            throw new ApiAuthError(JSON.stringify(result));
+            let textResult = await response.text();
+            throw new ApiAuthError(textResult);
+          
+          } else if (response.status === 404 ){
+            throw new ApiError("Resource not found. Recommendation: check resource is supported or base URL configuration.", `${method} ${full_url}`);
+          
           } else if (response.status === 429 ){
             //API Throttling Error
-            throw new ApiThrottlingError("API request limit reached.", result);
+            let textResult = await response.text();
+            throw new ApiThrottlingError("API request limit reached.", textResult);
           }
-          //client errors
+
+          // otherclient errors
+          let result = await response.json();
           let explain = '';
           if(result && result.Fault ){
             result.Fault.Error.forEach( function(x){
@@ -516,6 +554,8 @@ class QboConnector extends EventEmitter{
    *  }
    */
   async getAccessToken(code, realm_id){
+    await this.loadDiscoveryInfo();
+
     let fetchOpts = {
       method: 'POST',
       headers: {
@@ -537,9 +577,9 @@ class QboConnector extends EventEmitter{
     }
 
     verbose(`Sending: ${fetchOpts.body}`);
-    let response = await fetch(TOKEN_ENDPOINT, fetchOpts); 
+    let response = await fetch(this.endpoints.token_endpoint, fetchOpts); 
     if(!response.ok){
-      debug('...unsuccessful.')
+      debug('...unsuccessful.');
       let result = await response.json();
       throw new CredentialsError(`Unsuccessful ${grant_type} grant. (HTTP-${response.status}): ${JSON.stringify(result)}`);
     }
@@ -580,8 +620,8 @@ class QboConnector extends EventEmitter{
    */
   async disconnect(){
     try{
-
-      debug(`Disconnecting from the Intuit API.`)
+      await this.loadDiscoveryInfo();
+      debug(`Disconnecting from the Intuit API.`);
       if(this.credential_initializer){
         //Get latest credentials before disconnecting.
         let creds = await this.credential_initializer.call();
@@ -591,7 +631,7 @@ class QboConnector extends EventEmitter{
         }
       }
       if(this.refresh_token){  
-        let payload = {token: this.refresh_token}
+        let payload = {token: this.refresh_token};
         verbose(`Disconnection payload:\n${JSON.stringify(payload)}`);
         let fetchOpts = {
           method: 'POST',
@@ -603,12 +643,12 @@ class QboConnector extends EventEmitter{
           body: JSON.stringify(payload)
         };
 
-        let response = await fetch(REVOCATION_ENDPOINT, fetchOpts);
-        let result = await response.text()
+        let response = await fetch(this.endpoints.revocation_endpoint, fetchOpts);
+        let result = await response.text();
         if(response.ok){
           this.emit('token.revoked', result);
         } else {
-          console.warn(`Intuit responded with HTTP-${response.status} ${result}` )
+          console.warn(`Intuit responded with HTTP-${response.status} ${result}` );
         }
         return result;
       } else {
@@ -617,38 +657,41 @@ class QboConnector extends EventEmitter{
 
     }catch(err){
       console.error(err);
-      console.error(`Error during Intuit API disconnection process. ${JSON.stringify(err,null,2)}`)
+      console.error(`Error during Intuit API disconnection process. ${JSON.stringify(err,null,2)}`);
       throw err;
     }
   }
-};
+
+
+
+  /**
+    Returns a fully populated validation URL to be used for initiating an Intuit OAuth request.
+    
+    @param {string} state Provides any state that might be useful to your application upon receipt
+      of the response. The Intuit Authorization Server roundtrips this parameter, so your application
+      receives the same value it sent. Including a CSRF token in the state is recommended.
+
+    @return the authorization URL string with all parameters set and encoded.
+    Note, when the redirectUri is invoked, it will contain the following query parameters:
+    1. `code` (what you exchange for a token)
+    2. `realmId` - this identifies the QBO company and should be used (note spelling)
+  */
+  async getIntuitAuthorizationUrl( state ){
+    await this.loadDiscoveryInfo();
+    var url = `${this.endpoints.authorization_endpoint}`
+      + `?client_id=${encodeURIComponent(this.client_id)}`
+      + `&scope=${encodeURIComponent('com.intuit.quickbooks.accounting')}`
+      + `&redirect_uri=${encodeURIComponent(this.redirect_uri)}`
+      + `&response_type=code`
+      + `&state=${encodeURIComponent(state)}`;
+
+    return url;
+  }
+
+}//QboConnector
 
 exports.QboConnector=QboConnector;
 
-/**
-  Returns a fully populated validation URL to be used for initiating an Intuit OAuth request.
-  @param {string} client_id Identifies which app is making the request
-  @param {string} redirect_uri Determines where the response is sent. The value
-    of this parameter must exactly match one of the values listed for this app in the app settings.
-  @param {string} state Provides any state that might be useful to your application upon receipt
-    of the response. The Intuit Authorization Server roundtrips this parameter, so your application
-    receives the same value it sent. Including a CSRF token in the state is recommended.
-  @return the authorization URL string with all parameters set and encoded.
-  Note, when the redirectUri is invoked, it will contain the following query parameters:
-  1. `code` (what you exchange for a token)
-  2. `realmId` - this identifies the QBO company and should be used (note spelling)
-*/
-exports.getIntuitAuthorizationUrl = function(client_id, redirect_uri, state){
-
-  var url = `${AUTHORIZATION_ENDPOINT}`
-    + `?client_id=${encodeURIComponent(client_id)}`
-    + `&scope=${encodeURIComponent('com.intuit.quickbooks.accounting')}`
-    + `&redirect_uri=${encodeURIComponent(redirect_uri)}`
-    + `&response_type=code`
-    + `&state=${encodeURIComponent(state)}`;
-
-  return url;
-}
 
 /** An API error from the connector, typically including a captured `payload` object you can work with to obtain more information about the error and how to handle it. */
 class ApiError extends Error {
@@ -656,15 +699,16 @@ class ApiError extends Error {
     super(msg);
     this.payload = payload;//Stores the Intuit response.
   }
-};
+}
+
 /** Specific type of API error indicating the API request limit has been reached. */
 class ApiThrottlingError extends ApiError {
   constructor(msg, payload){
     super(msg, payload);
   }
 }
-class ApiAuthError extends Error {};//only used internally.
-class CredentialsError extends Error{};//For missing/incomplete/invalid OAuth credentials.
+class ApiAuthError extends Error {}//only used internally.
+class CredentialsError extends Error{}//For missing/incomplete/invalid OAuth credentials.
 exports.ApiError = ApiError;
 exports.ApiThrottlingError = ApiThrottlingError;
 exports.CredentialsError = CredentialsError;
