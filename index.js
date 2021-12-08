@@ -35,7 +35,7 @@ exports.SANDBOX_API_BASE_URL = SANDBOX_API_BASE_URL;
 /**
  * NodeJS QuickBooks connector class for the Intuit v3 Accounting API.
  * 
- * @version 4.0.x
+ * @version 4.1.x
  */
 class QboConnector extends EventEmitter{
   /**
@@ -154,7 +154,9 @@ class QboConnector extends EventEmitter{
 
     ];
 
-    this.accounting={};
+    this.accounting={
+      intuit_tid: null //tid from most recent api call
+    };
 
   }//end constructor
 
@@ -194,10 +196,11 @@ class QboConnector extends EventEmitter{
 
   async loadDiscoveryInfo(){
     if(!this.endpoints){
+      let response = null;
       try {
         let doc_url = this.is_sandbox ? DISCOVERY_URL_SANDBOX : DISCOVERY_URL_PRODUCTION;
         debug(`Loading discovery document from ${doc_url}`);
-        let response = await fetch(doc_url);
+        response = await fetch(doc_url);
         let {authorization_endpoint, token_endpoint, revocation_endpoint} = await response.json();
         this.endpoints = {
           authorization_endpoint,
@@ -205,7 +208,7 @@ class QboConnector extends EventEmitter{
           revocation_endpoint
         };
       } catch (err) {
-        throw new ApiError(`Intuit Discovery Document Error: ${err.messsage}`);
+        throw new ApiError(`Intuit Discovery Document Error: ${err.messsage}`, null, response.headers.get('intuit_tid'));
       }
     }
   }
@@ -443,8 +446,9 @@ class QboConnector extends EventEmitter{
       debug(`${method}${options.entityName?' '+options.entityName:''} ${full_url}`);
       
       let response = await fetch(full_url, fetchOpts);
-
       let result = null;
+      this.accounting.intuit_tid = response.headers.get('intuit_tid');//record last tid.
+      verbose(`  Intuit TID: `, response.headers.get('intuit_tid'));
       if(response.ok){
         debug(`  ...OK HTTP-${response.status}`);
         result = await response.json();
@@ -463,12 +467,12 @@ class QboConnector extends EventEmitter{
             throw new ApiAuthError(textResult);
           
           } else if (response.status === 404 ){
-            throw new ApiError("Resource not found. Recommendation: check resource is supported or base URL configuration.", `${method} ${full_url}`);
+            throw new ApiError("Resource not found. Recommendation: check resource is supported or base URL configuration.", `${method} ${full_url}`, response.headers.get('intuit_tid'));
           
           } else if (response.status === 429 ){
             //API Throttling Error
             let textResult = await response.text();
-            throw new ApiThrottlingError("API request limit reached.", textResult);
+            throw new ApiThrottlingError("API request limit reached.", textResult, response.headers.get('intuit_tid'));
           }
 
           // otherclient errors
@@ -496,12 +500,12 @@ class QboConnector extends EventEmitter{
             });
           }
           if(!explain) explain = JSON.stringify(result);
-          throw new ApiError(`Client Error (HTTP ${response.status}) ${explain}`, result);
+          throw new ApiError(`Client Error (HTTP ${response.status}) ${explain}`, result, response.headers.get('intuit_tid'));
           
         } else if (response.status >=500) {
           //server side errors
           verbose(`  server error. response payload: ${JSON.stringify(result)}`);
-          throw new ApiError(`Server Error (HTTP ${response.status})`, result);
+          throw new ApiError(`Server Error (HTTP ${response.status})`, result, response.headers.get('intuit_tid'));
         }
         return result;
       }
@@ -695,16 +699,17 @@ exports.QboConnector=QboConnector;
 
 /** An API error from the connector, typically including a captured `payload` object you can work with to obtain more information about the error and how to handle it. */
 class ApiError extends Error {
-  constructor(msg, payload){
+  constructor(msg, payload, intuit_tid){
     super(msg);
     this.payload = payload;//Stores the Intuit response.
+    this.intuit_tid = intuit_tid;
   }
 }
 
 /** Specific type of API error indicating the API request limit has been reached. */
 class ApiThrottlingError extends ApiError {
-  constructor(msg, payload){
-    super(msg, payload);
+  constructor(msg, payload, intuit_tid){
+    super(msg, payload, intuit_tid);
   }
 }
 class ApiAuthError extends Error {}//only used internally.
