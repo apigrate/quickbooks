@@ -13,6 +13,9 @@ Now uses the Intuit discovery documents, dynamically loading the correct URLs fr
 
 Changes:
 * added `is_sandbox` boolean to constructor. Use this to specify sandbox vs production environment.
+* added `intuit_tid` to returned `accountingApi()`. This contains the last api call's `intuit_tid` value, which is useful for developer support troubleshooting.
+* `intuit_tid` property added to ApiErrors and ApiThrottlingErrors.
+
 
 Breaking Changes:
 * `getIntuitAuthorizationUrl` function is now an asynchronous method on the connector instance. 
@@ -589,12 +592,10 @@ try{
 
 >Note that `Fault.Error` is an *array*, although most of the time there is just one error. For each error, the `Message` is the high-level explanation of the error.
 
-## OAuth getIntuitAuthorizationUrl = function(client_id, redirect_uri, state)
-The connector also provides a convenience methods for constructing a **client-to-Intuit** URL that initiates the user OAuth2 authorization process.
+## OAuth getIntuitAuthorizationUrl = function(state)
+The connector also provides a instance method for constructing a **client-to-Intuit** URL that initiates the user OAuth2 authorization process.
 
 Parameters:
-1. **client_id** (string) your app's client id as defined at developer.intuit.com
-1. **redirect_uri** (string) Determines where the response is sent. The value of this parameter must exactly match one of the values listed for this app in the developer.intuit.com app settings.
 1. **state** (string) Provides any state that might be useful to your application upon receipt of the response. The Intuit Authorization Server roundtrips this parameter, so your application receives the same value it sent. Including a CSRF token in the state is recommended.
 
 Returns an authorization URL string with all parameters set and encoded. **You use this to make your own call, typically on a UI component.** Note, when the redirect_uri is invoked after the user has authenticated, it will contain the following query parameters:
