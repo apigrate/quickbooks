@@ -35,7 +35,7 @@ exports.SANDBOX_API_BASE_URL = SANDBOX_API_BASE_URL;
 /**
  * NodeJS QuickBooks connector class for the Intuit v3 Accounting API.
  * 
- * @version 4.1.x
+ * @version 4.2.x
  */
 class QboConnector extends EventEmitter{
   /**
@@ -122,6 +122,7 @@ class QboConnector extends EventEmitter{
       //supporting entities
       { handle: 'Attachable',         name: 'Attachable',       fragment: 'attachable',        query: true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'CompanyInfo',        name: 'CompanyInfo',      fragment: 'companyinfo',       query: true,  create:false, read: true,  update: true,  delete: false },
+      { handle: 'ExchangeRate',       name: 'ExchangeRate',     fragment: 'exchangerate',      query: true,  create:false, read: false, update: true,  delete: false },
       { handle: 'Preferences',        name: 'Preferences',      fragment: 'preferences',       query: true,  create:false, read: true,  update: true,  delete: false },
       //reports
       { handle: 'AccountListDetailReport',          name: 'AccountList',                  fragment: 'AccountList',                report: true },
