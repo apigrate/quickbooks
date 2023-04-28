@@ -239,6 +239,7 @@ class QboConnector extends EventEmitter{
       if(e.update){
         options.update = function(payload, opts){
           var qs = {operation: 'update'};
+          if(opts.include === 'void') qs.include = 'void';
           if(opts.operation === 'void') qs.operation = 'void';
           if(opts && opts.reqid){
             qs.requestid=opts.reqid ;
