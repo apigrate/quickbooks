@@ -7,7 +7,7 @@ A transparent **one-stop** library for interacting with the QuickBooks Online AP
 5. convenience method for constructor OAuth URLs
 6. and most importantly, **complete coverage of the QuickBooks Online Accounting API**.
 
-## Version 4.0 Changes
+## Version 4.x Changes
 
 Now uses the Intuit discovery documents, dynamically loading the correct URLs from Intuit OAuth.
 
@@ -15,6 +15,7 @@ Changes:
 * added `is_sandbox` boolean to constructor. Use this to specify sandbox vs production environment.
 * added `intuit_tid` to returned `accountingApi()`. This contains the last api call's `intuit_tid` value, which is useful for developer support troubleshooting.
 * `intuit_tid` property added to ApiErrors and ApiThrottlingErrors.
+* Void support added for certain entities. You may use a `.voidTransaction()` operation on Invoices, BillPayments, Payments and SalesTransactions
 
 
 Breaking Changes:
@@ -23,20 +24,20 @@ Breaking Changes:
 ## Supported Entities
 
 ***Supported Transactional Entities:***
-| Entity | query | create | get by id | update | delete |
-|---|:---:|:---:|:---:|:---:|:---:|
+| Entity | query | create | get by id | update | delete | void |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Bill |  &check; | &check; | &check; | &check; | &check; |
-| BillPayment |  &check; | &check; | &check; | &check; | &check; |
+| BillPayment |  &check; | &check; | &check; | &check; | &check; | &check; |
 | CreditMemo | &check; | &check; | &check; | &check; | &check; |
 | Deposit |  &check; | &check; | &check; | &check; | &check; |
 | Estimate |  &check; | &check; | &check; | &check; | &check; |
-| Invoice |  &check; | &check; | &check; | &check; | &check; |
+| Invoice |  &check; | &check; | &check; | &check; | &check; |  &check; |
 | JournalEntry |  &check; | &check; | &check; | &check; | &check; |
-| Payment |  &check; | &check; | &check; | &check; | &check; |
+| Payment |  &check; | &check; | &check; | &check; | &check; |  &check; |
 | Purchase |  &check; | &check; | &check; | &check; | &check; |
 | Purchaseorder  | &check; | &check; | &check; | &check; | &check; |
 | RefundReceipt  | &check; | &check; | &check; | &check; | &check; |
-| SalesReceipt  | &check; | &check; | &check; | &check; | &check; |
+| SalesReceipt  | &check; | &check; | &check; | &check; | &check; |  &check; |
 | TimeActivity  | &check; | &check; | &check; | &check; | &check; |
 | Transfer  | &check; | &check; | &check; | &check; | &check; |
 | VendorCredit  | &check; | &check; | &check; | &check; | &check; |
@@ -456,6 +457,16 @@ The `result` is:
 ```
 
 > For entites not supporting a "hard delete", usually there's a way to "soft-delete" them by setting `Active=false` using the `update()` method, or something similar.
+
+### Voids
+Voids are supported for certain Intuit entities (BillPayment, Invoice, Payment, SalesReceipt). These are similar to updates, but you must use  `.voidTransaction()` method to perform voids. 
+
+**Entity.voidTransaction(payload, opts)**
+* `payload` (**object**) an object payload containing the void payload fields of the object. Typically you will need to provide a payload like: `{Id: 192, SyncToken: 0}`. Note, this implies you should retrieve the entity prior to voiding it, because you should use the sync token from the current entity.
+* `opts` (**object**, optional)
+  * `reqid` (**string**, optional) unique request id that Intuit uses to "replay" transaction in case of errors. Sending a request id is not required, but it is considered a best-practice.
+  * `minor_version` (**number**, optional) an API request-specific minor version to use for the request. Overrides the `minor_version` constructor argument, if one was provided.
+
 
 ### Batch Requests
 Batch requests (submitting multiple operations with one request) ARE supported! Here is a code example. This deletes multiple time activities, but you can mix your own types of transactions. They do not need to be the same type of entity or operation.

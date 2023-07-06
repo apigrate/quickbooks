@@ -88,17 +88,17 @@ class QboConnector extends EventEmitter{
     this.registry = [
       //transaction entities
       { handle: 'Bill',             name: 'Bill',             fragment: 'bill',           query:true,  create:true,  read: true,  update: true,  delete: true },
-      { handle: 'BillPayment',      name: 'BillPayment',      fragment: 'billpayment',    query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'BillPayment',      name: 'BillPayment',      fragment: 'billpayment',    query:true,  create:true,  read: true,  update: true,  delete: true, voidable: true },
       { handle: 'CreditMemo',       name: 'CreditMemo',       fragment: 'creditmemo',     query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'Deposit',          name: 'Deposit',          fragment: 'deposit',        query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'Estimate',         name: 'Estimate',         fragment: 'estimate',       query:true,  create:true,  read: true,  update: true,  delete: true },
-      { handle: 'Invoice',          name: 'Invoice',          fragment: 'invoice',        query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Invoice',          name: 'Invoice',          fragment: 'invoice',        query:true,  create:true,  read: true,  update: true,  delete: true, voidable: true },
       { handle: 'JournalEntry',     name: 'JournalEntry',     fragment: 'journalentry',   query:true,  create:true,  read: true,  update: true,  delete: true },
-      { handle: 'Payment',          name: 'Payment',          fragment: 'payment',        query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'Payment',          name: 'Payment',          fragment: 'payment',        query:true,  create:true,  read: true,  update: true,  delete: true, voidable: true },
       { handle: 'Purchase',         name: 'Purchase',         fragment: 'purchase',       query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'Purchaseorder',    name: 'Purchaseorder',    fragment: 'purchaseorder',  query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'RefundReceipt',    name: 'RefundReceipt',    fragment: 'refundreceipt',  query:true,  create:true,  read: true,  update: true,  delete: true },
-      { handle: 'SalesReceipt',     name: 'SalesReceipt',     fragment: 'salesreceipt',   query:true,  create:true,  read: true,  update: true,  delete: true },
+      { handle: 'SalesReceipt',     name: 'SalesReceipt',     fragment: 'salesreceipt',   query:true,  create:true,  read: true,  update: true,  delete: true, voidable: true },
       { handle: 'TimeActivity',     name: 'TimeActivity',     fragment: 'timeactivity',   query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'Transfer',         name: 'Transfer',         fragment: 'transfer',       query:true,  create:true,  read: true,  update: true,  delete: true },
       { handle: 'VendorCredit',     name: 'VendorCredit',     fragment: 'vendorcredit',   query:true,  create:true,  read: true,  update: true,  delete: true },
@@ -303,6 +303,27 @@ class QboConnector extends EventEmitter{
           }
           
           return self._get.call(self, e.name, `/query`, qs);
+        };
+      }
+
+      if(e.voidable){
+        options.voidTransaction = function(payload, opts){
+          var qs;
+          //Note, Intuit implementation is inconsistent.
+          if(e.name==='Invoice'){
+            qs={operation: 'void'};
+          } else {
+            qs={operation: 'update', include: 'void'};
+          }
+          if(opts && opts.reqid){
+            qs.requestid=opts.reqid ;
+          }
+          if(opts && opts.minor_version){
+            qs.minorversion = opts.minor_version;
+          } else if(self.minor_version){
+            qs.minorversion = self.minor_version;
+          }
+          return self._post.call(self, e.name, `/${e.fragment}`, qs, payload);
         };
       }
 
