@@ -1,5 +1,5 @@
 /*
-  Copyright 2019-2021 Apigrate LLC
+  Copyright 2019-2023 Apigrate LLC
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -34,8 +34,6 @@ exports.SANDBOX_API_BASE_URL = SANDBOX_API_BASE_URL;
 
 /**
  * NodeJS QuickBooks connector class for the Intuit v3 Accounting API.
- * 
- * @version 4.2.x
  */
 class QboConnector extends EventEmitter{
   /**
