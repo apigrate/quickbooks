@@ -14,7 +14,6 @@
   limitations under the License.
 */
 const fetch = require('node-fetch');
-const qs = require('query-string');
 
 var debug   = require('debug')('gr8:quickbooks');
 var verbose = require('debug')('gr8:quickbooks:verbose');
@@ -343,6 +342,23 @@ class QboConnector extends EventEmitter{
         };
       }
 
+      if(e.name==='Invoice'){
+        options.sendEmail = function(id, opts){
+          var qs = {};
+          if(opts && opts.sendTo){
+            qs.sendTo=opts.sendTo ;
+          }
+          if(opts && opts.minor_version){
+            qs.minorversion = opts.minor_version;
+          } else if(self.minor_version){
+            qs.minorversion = self.minor_version;
+          }
+          return self._post.call(self, e.name, `/${e.fragment}/${id}/send`, qs, null, {
+            headers: {"Content-Type": "application/octet-stream" }
+          });
+        };
+      }
+
       self.accounting[e.handle]=options;
 
     });
@@ -369,13 +385,13 @@ class QboConnector extends EventEmitter{
   }
 
 
-  async _post(entityName, uri, qs, body){
+  async _post(entityName, uri, qs, body, opts){
     return this.doFetch(
       "POST", 
       `${uri}`, 
       qs, 
       body, 
-      {entityName}
+      {entityName, ...opts}
     );
   }
 
@@ -440,12 +456,14 @@ class QboConnector extends EventEmitter{
     }
 
     if(options && options.headers){
-      fetchOpts.headers = options.headers;
+      // spread in user-provided headers (overrides defaults)
+      fetchOpts.headers = {...fetchOpts.headers, ...options.headers};
     }
     
     let qstring = '';
     if(query){
-      qstring = qs.stringify(query);
+      const searchParams = new URLSearchParams(query);
+      qstring = searchParams.toString();
       qstring = '?'+qstring;
     }
     let full_url = `${this.base_url}/v3/company/${this.realm_id}${url}${qstring}`;
@@ -464,7 +482,7 @@ class QboConnector extends EventEmitter{
 
     try{
       debug(`${method}${options.entityName?' '+options.entityName:''} ${full_url}`);
-      
+      verbose(`  fetch options: ${JSON.stringify(fetchOpts)}`);
       let response = await fetch(full_url, fetchOpts);
       let result = null;
       this.accounting.intuit_tid = response.headers.get('intuit_tid');//record last tid.
