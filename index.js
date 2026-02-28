@@ -206,7 +206,7 @@ class QboConnector extends EventEmitter{
           revocation_endpoint
         };
       } catch (err) {
-        throw new ApiError(`Intuit Discovery Document Error: ${err.messsage}`, null, response.headers.get('intuit_tid'));
+        throw new ApiError(`Intuit Discovery Document Error: ${err.message}`, null, response.headers.get('intuit_tid'));
       }
     }
   }
@@ -496,9 +496,9 @@ class QboConnector extends EventEmitter{
     
         //Note: Some APIs return HTML or text depending on status code...
         
-        if (response.status >=300 & response.status < 400){
+        if (response.status >=300 && response.status < 400){
           //redirection
-        } else if (response.status >=400 & response.status < 500){
+        } else if (response.status >=400 && response.status < 500){
           if(response.status === 401 ){
             //These will be retried once after attempting to refresh the access token.
             let textResult = await response.text();
