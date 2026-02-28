@@ -623,6 +623,9 @@ class QboConnector extends EventEmitter{
     if(!response.ok){
       debug('...unsuccessful.');
       let result = await response.json();
+      if(grant_type === 'refresh_token'){
+        throw new TokenRefreshError(`Access token refresh failed. (HTTP-${response.status}): ${JSON.stringify(result)}`);
+      }
       throw new CredentialsError(`Unsuccessful ${grant_type} grant. (HTTP-${response.status}): ${JSON.stringify(result)}`);
     }
 
@@ -752,6 +755,9 @@ class ApiThrottlingError extends ApiError {
 }
 class ApiAuthError extends Error {}//only used internally.
 class CredentialsError extends Error{}//For missing/incomplete/invalid OAuth credentials.
+/** Thrown when an access token refresh attempt fails. */
+class TokenRefreshError extends Error{}
 exports.ApiError = ApiError;
 exports.ApiThrottlingError = ApiThrottlingError;
 exports.CredentialsError = CredentialsError;
+exports.TokenRefreshError = TokenRefreshError;
