@@ -130,6 +130,7 @@ let qbo = await connector.accountingApi();
 * **realm_id** *number* (*string*, conditional) Intuit company identifier, used in API call URLs. You should obtain this from your own storage.
 * **credential_initializer** (*function*, conditional) An asyncronous function that initializes the `access_token`, `refresh_token`, and `realm_id`; it is designed to bbe used in lieu of providing them as constructor arguments. The function you implement must return a credentials object of the form: `{ access_token, refresh_token, realm_id}`. This function is invoked on the first API method invocation automatically. If you omit this function, you'll need to call the `setCredentials` method with an object of the same structure prior to your first API method invocation. 
 * **minorversion** (*number*, optional)  specifying the QuickBooks API minor version parameter to be passed through on each API call
+* **throttle_backoff** (*number*, optional) the number of milliseconds to wait before retrying a request after receiving an HTTP 429 (rate limit) response. Defaults to `10000` (10 seconds). See [Error Handling](#error-handling) for more details.
 * **baseUrl** (*string*, conditional) The Intuit base URL for API calls. When not provided, it defaults to the Intuit production base URL for the API: `https://quickbooks.api.intuit.com/v3`. However for QuickBooks sandbox use, **you must provide it explicitly**: `https://sandbox-quickbooks.api.intuit.com/v3`
 
 The connector will automatically use any provided credentials to renew the access_token when it expires. The connector emits a `token.refreshed` event internally when it does this. Implement your own listener function to store credentials.
@@ -562,7 +563,31 @@ The `result` is:
 
 ### Error Handling
 
-API-specific errors (typically HTTP-4xx) responses, are trapped and thrown with the `ApiError` class. An `ApiThrottlingError` is also available. It is a subclass of `ApiError` and is thrown when HTTP-429 responses are encountered, indicating the API request limits were reached. 
+API-specific errors (typically HTTP-4xx) responses, are trapped and thrown with the `ApiError` class. The following error classes are available:
+
+* **ApiError** - General API errors (HTTP 4xx/5xx responses)
+* **ApiThrottlingError** - Subclass of `ApiError`, thrown when HTTP 429 responses are encountered after retry attempts are exhausted
+* **CredentialsError** - Thrown when OAuth credentials are missing or invalid
+* **TokenRefreshError** - Thrown when an access token refresh attempt fails
+
+#### Automatic Token Refresh
+
+When an API call receives an HTTP 401 (Unauthorized) response, the connector automatically attempts to refresh the access token using the refresh token and retry the request once. If the refresh succeeds, the `token.refreshed` event is emitted (see [Usage](#usage) for how to handle this event). If the refresh fails, a `TokenRefreshError` is thrown.
+
+#### Automatic Throttling Backoff
+
+When an API call receives an HTTP 429 (Too Many Requests) response, the connector automatically waits and retries the request once. The wait duration is configurable via the `throttle_backoff` constructor option (default: 10 seconds / 10000ms).
+
+```javascript
+let connector = new QboConnector({
+  client_id: 'your_client_id',
+  client_secret: 'your_client_secret',
+  redirect_uri: 'your_redirect_uri',
+  throttle_backoff: 60000
+});
+```
+
+If the retry also receives an HTTP 429 response, an `ApiThrottlingError` is thrown.
 
 **Example: Attempted create that fails because of missing fields**
 

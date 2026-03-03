@@ -1,5 +1,5 @@
 /*
-  Copyright 2019-2023 Apigrate LLC
+  Copyright 2019-2026 Apigrate LLC
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ class QboConnector extends EventEmitter{
    * @param {number} config.minor_version optional minor version to use on API calls to the QuickBooks API. This will become the default minor version applied to all
    * API calls. You can override the minor_version on specific calls, by providing it as an options argument on the API call. 
    * See https://developer.intuit.com/app/developer/qbo/docs/develop/explore-the-quickbooks-online-api/minor-versions to learn more about minor versions.
+   * @param {number} config.throttle_backoff optional number of milliseconds to wait before retrying after an HTTP 429 throttling response (default: 10000)
    * @param {function} config.credential_initializer optional (but recommended) function returning an object with the initial credentials to be used, of the form
    * `{ access_token, refresh_token, realm_id}`. This function is invoked on the first API method invocation automatically. If you omit this function, you'll need
    * to call the setCredentials method prior to your first API method invocation. 
@@ -68,6 +69,7 @@ class QboConnector extends EventEmitter{
     this.realm_id=config.realm_id || null;
 
     this.minor_version = config.minor_version || null;
+    this.throttle_backoff = config.throttle_backoff !== undefined ? config.throttle_backoff : 10000;
     this.credential_initializer = config.credential_initializer || null;
     this.is_sandbox = config.is_sandbox || false;
     this.base_url = this.is_sandbox ? SANDBOX_API_BASE_URL : PRODUCTION_API_BASE_URL; // from discovery.
@@ -567,6 +569,22 @@ class QboConnector extends EventEmitter{
           throw err;
         }
 
+      }
+      if(err instanceof ApiThrottlingError){
+        if(!options.throttleRetries){
+          options.throttleRetries = 0;
+        }
+        if(options.throttleRetries < 1){
+          debug(`Rate limited (HTTP 429). Waiting ${this.throttle_backoff}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, this.throttle_backoff));
+          options.throttleRetries += 1;
+          debug(`...retrying after throttle wait (attempt ${options.throttleRetries})...`);
+          let retryResult = await this.doFetch(method, url, query, payload, options);
+          return retryResult;
+        } else {
+          debug(`No further retry after throttling (already retried ${options.throttleRetries} times).`);
+          throw err;
+        }
       }
       //All other errors are re-thrown.
       throw err;
